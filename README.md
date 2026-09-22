@@ -109,6 +109,13 @@ session to a desk by, in order:
 Anything else under the office root shows as `(unassigned)`; anything
 outside is ignored. Budgets are per sprint and in tokens.
 
+Cursor is different. `cursor-agent` writes its sessions to
+`~/.cursor/chats/**/{meta.json,store.db}` with the directory, the start
+time, the session name and every message, but no token counts, and the
+IDE's own database has none either (checked 2026-09-22). So a `cursor`
+desk is attributed and its turns are counted, and its token columns say
+`n/a`. Nothing is estimated in their place.
+
 ## Design
 
 The product requirements, architecture, stack and roadmap are in

@@ -127,23 +127,26 @@ def meter_table(office: Office, days: int | None = None) -> str:
             p = u.pct or 0.0
             pct = (bad if p >= 100 else ok)(f"{p:.0f}%") + dim(f" of {meter.fmt_tokens(u.budget)}")
         proj = meter.projection(u.total, start, min(now, end)) if u.total else 0
+        if u.unmetered and u.unmetered == u.turns:
+            # every turn came from a harness that writes no token counts
+            tokens_in, tokens_out, tokens_total, pct, proj_s = dim("n/a"), dim("n/a"), dim("n/a"), dim("no data"), ""
+        else:
+            tokens_in = f"{meter.fmt_tokens(u.input)} ({meter.fmt_tokens(u.cached)})"
+            tokens_out = meter.fmt_tokens(u.output)
+            tokens_total = meter.fmt_tokens(u.total) + (dim("+") if u.unmetered else "")
+            proj_s = dim(f"{meter.fmt_tokens(proj)}/30d") if proj else ""
         body.append(
-            [
-                u.desk,
-                u.harness,
-                str(u.sessions),
-                str(u.turns),
-                f"{meter.fmt_tokens(u.input)} ({meter.fmt_tokens(u.cached)})",
-                meter.fmt_tokens(u.output),
-                meter.fmt_tokens(u.total),
-                pct,
-                dim(f"{meter.fmt_tokens(proj)}/30d") if proj else "",
-            ]
+            [u.desk, u.harness, str(u.sessions), str(u.turns), tokens_in, tokens_out, tokens_total, pct, proj_s]
         )
     if not body:
         return dim(f"no harness usage attributed to this office in {label}")
-    return f"{dim('usage')} {label}\n" + table(
-        ["DESK", "HARNESS", "SESS", "TURNS", "IN (cached)", "OUT", "TOTAL", "BUDGET", "PROJECTION"], body
+    note = ""
+    if any(u.unmetered for u in rows):
+        note = "\n" + dim("n/a, +: cursor writes no token counts to disk; those turns are counted, not metered")
+    return (
+        f"{dim('usage')} {label}\n"
+        + table(["DESK", "HARNESS", "SESS", "TURNS", "IN (cached)", "OUT", "TOTAL", "BUDGET", "PROJECTION"], body)
+        + note
     )
 
 

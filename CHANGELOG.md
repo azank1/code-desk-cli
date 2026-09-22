@@ -6,6 +6,16 @@ All notable changes to this project are recorded here. Format follows
 
 ## [Unreleased]
 
+### Added
+- `cursor` harness: `desk up` launches `cursor-agent` with the same pointer
+  prompt as Codex; the meter reads `~/.cursor/chats` and attributes sessions
+  by name, launch record or directory.
+
+### Changed
+- The meter distinguishes counted turns from metered turns. A desk whose
+  harness writes no token counts (Cursor) shows `n/a` instead of `0`, and a
+  mixed desk marks its total with `+`.
+
 ## [0.0.1] — 2026-09-22
 
 First tracked version. Not on PyPI.

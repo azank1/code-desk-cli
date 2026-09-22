@@ -25,6 +25,11 @@ def desk_command(office: Office, desk: Desk) -> list[str]:
         # pointer, so `desk up --dry-run` stays readable and the role can be
         # edited without relaunching.
         return ["codex", codex_pointer(desk, role)]
+    if desk.harness == "cursor":
+        # cursor-agent: no system-prompt flag, no session-name flag; same pointer
+        # prompt as Codex. Name the session inside it (/rename) so the meter
+        # attributes by rule 1; otherwise rule 2 (launch record) applies.
+        return ["cursor-agent", codex_pointer(desk, role)]
     if desk.harness == "custom" and desk.command:
         return shlex.split(desk.command.format(name=desk.name, role=str(role), cwd=str(office.root / desk.cwd)))
     raise LaunchError(f"desk {desk.name}: no command for harness {desk.harness}")

@@ -146,3 +146,50 @@ def test_window_last_days_when_no_start(office, now):
     office.cadence.start = None
     label, start, end = meter.window(office, now=now)
     assert label == "last 7 days" and (end - start).days == 7
+
+
+def _cursor_session(root, ws, sid, cwd, name=None, assistant=2, created_ms=1789103743325, has_conv=True):
+    import sqlite3
+
+    d = root / ws / sid
+    d.mkdir(parents=True)
+    (d / "meta.json").write_text(
+        json.dumps({"schemaVersion": 1, "createdAtMs": created_ms, "hasConversation": has_conv, "cwd": cwd})
+    )
+    con = sqlite3.connect(d / "store.db")
+    con.execute("create table blobs (id text primary key, data blob)")
+    con.execute("create table meta (key text primary key, value text)")
+    meta = json.dumps({"agentId": sid, "name": name or "New Agent"}).encode().hex()
+    con.execute("insert into meta values ('0', ?)", (meta,))
+    compact = {"separators": (",", ":")}  # Cursor writes compact JSON; the reader matches on the first 19 bytes
+    rows = [("s", json.dumps({"role": "system", "content": "x"}, **compact).encode())]
+    rows += [(f"u{i}", json.dumps({"role": "user", "content": "q"}, **compact).encode()) for i in range(assistant)]
+    rows += [(f"a{i}", json.dumps({"role": "assistant", "content": "a"}, **compact).encode()) for i in range(assistant)]
+    rows += [("enc", b"\x00\x01binary blob, not json")]
+    con.executemany("insert into blobs values (?, ?)", rows)
+    con.commit()
+    con.close()
+
+
+def test_read_cursor_counts_turns_without_tokens(tmp_path):
+    _cursor_session(tmp_path, "ws1", "sess-a", "/repo", name="review", assistant=3)
+    _cursor_session(tmp_path, "ws1", "sess-b", "/repo", assistant=1)  # default name -> None
+    _cursor_session(tmp_path, "ws2", "sess-c", "/repo", has_conv=False)  # skipped
+    _cursor_session(tmp_path, "ws2", "sess-d", "/repo", assistant=0)  # no assistant turns -> skipped
+    sessions = {s.id: s for s in meter.read_cursor(tmp_path)}
+    assert set(sessions) == {"sess-a", "sess-b"}
+    a = sessions["sess-a"]
+    assert a.harness == "cursor" and a.cwd == "/repo" and a.name == "review" and not a.metered
+    assert len(a.turns) == 3 and all(t.total == 0 for t in a.turns)
+    assert a.first_ts == dt.datetime.fromtimestamp(1789103743.325, dt.UTC)
+    assert sessions["sess-b"].name is None
+
+
+def test_summarize_reports_unmetered_turns(office, now):
+    root = str(office.root)
+    t = now - dt.timedelta(hours=1)
+    cursor = Session("cursor", "c1", root, t, "review", [Turn(t, None, 0, 0, 0)] * 4, metered=False)
+    claude = Session("claude", "k1", root, t, "pm", [Turn(t, None, 100, 0, 10)])
+    rows = {u.desk: u for u in meter.summarize(office, [cursor, claude], [], t - dt.timedelta(days=1), now)}
+    assert rows["review"].turns == 4 and rows["review"].unmetered == 4 and rows["review"].total == 0
+    assert rows["pm"].turns == 1 and rows["pm"].unmetered == 0 and rows["pm"].total == 110
