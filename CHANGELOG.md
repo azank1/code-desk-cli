@@ -15,6 +15,8 @@ All notable changes to this project are recorded here. Format follows
   `additional_context`), installed project-scoped by `desk hooks --install`
   with a read-then-merge that keeps existing hooks. Codex is pushed to with
   `codex queue --thread <desk>` when a session carries the desk's name.
+  Both pull hooks verified live with a nonce; `cursor-agent -p` does not run
+  project hooks, only its interactive TUI does.
 - `desk up` sets `DESK=<name>` on every desk's process; role prompts ask
   for `desk mail read` at the start of each turn.
 - `cursor` harness: `desk up` launches `cursor-agent` with the same pointer

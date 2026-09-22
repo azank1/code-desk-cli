@@ -6,7 +6,12 @@ So it is a separate store, never merged into board.yaml.
 
 Delivery has two shapes. Claude Code and Cursor pull: a turn-start hook
 (`desk hook claude` / `desk hook cursor`) returns unread mail as extra
-context and marks it read. Codex has no working project hook, so `desk
+context and marks it read. Both were verified live on 2026-09-22 by
+planting a nonce in a desk's mail and asking the session for it with
+file reads forbidden. One caveat: cursor-agent runs project hooks only
+in its interactive TUI, not under `-p`, so a Cursor desk must be a real
+tmux window, which is how `desk up` starts it. Claude Code fires the
+hook in both modes. Codex has no working project hook, so `desk
 send` pushes a pointer with `codex queue --thread <desk>` when a session
 with that exact name exists; the file still waits on disk for `desk mail
 read`, which every role prompt asks the desk to run.

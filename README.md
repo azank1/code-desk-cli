@@ -146,8 +146,11 @@ Delivery depends on the harness:
 | Harness | How mail reaches the desk |
 |---|---|
 | Claude Code | A project-scoped `UserPromptSubmit` hook (`desk hook claude`) returns unread mail as extra context at the start of the next turn. |
-| Cursor | Same, through a `beforeSubmitPrompt` hook in `.cursor/hooks.json` (`desk hook cursor`). |
+| Cursor | Same, through a `beforeSubmitPrompt` hook in `.cursor/hooks.json` (`desk hook cursor`). Only in the interactive TUI: `cursor-agent -p` does not run project hooks, so keep Cursor desks in their tmux window. |
 | Codex | Pushed: `desk send` runs `codex queue --thread <desk>`, which works once you have named the Codex session after the desk (Codex has no flag for that; use its rename menu). Otherwise the file waits for `desk mail read`, which the role prompt asks for at every turn. |
+
+Both hooks were verified live: a nonce planted in a desk's mail came back
+from the model with file reads forbidden, and the message was marked read.
 
 `desk hooks` shows what would be written to the office's own
 `.claude/settings.json` and `.cursor/hooks.json`; `desk hooks --install`
