@@ -48,19 +48,23 @@ def dim(s: str) -> str:
 def table(headers: list[str], rows: list[list[str]]) -> str:
     import re
 
-    strip = lambda s: re.sub(r"\033\[[0-9;]*m", "", s)
+    def strip(s: str) -> str:
+        return re.sub(r"\033\[[0-9;]*m", "", s)
+
     widths = [len(h) for h in headers]
     for r in rows:
         for i, cell in enumerate(r):
             widths[i] = max(widths[i], len(strip(cell)))
+
     def line(cells):
         return "  ".join(c + " " * (widths[i] - len(strip(c))) for i, c in enumerate(cells)).rstrip()
+
     out = [dim(line(headers))]
     out += [line(r) for r in rows]
     return "\n".join(out)
 
 
-def die(msg: str, code: int = 1) -> "NoReturn":  # noqa: F821
+def die(msg: str, code: int = 1) -> NoReturn:  # noqa: F821
     print(bad("error: ") + msg, file=sys.stderr)
     sys.exit(code)
 
@@ -90,7 +94,16 @@ def board_table(rows: list[SyncRow]) -> str:
             continue
         status = r.status
         paint = ok if status == "in sync" else bad
-        body.append([r.thread, r.desk, r.gate, _col(r.owner_filed, r.owner_owes, owner), _col(r.engineer_filed, r.engineer_owes, eng), paint(status)])
+        body.append(
+            [
+                r.thread,
+                r.desk,
+                r.gate,
+                _col(r.owner_filed, r.owner_owes, owner),
+                _col(r.engineer_filed, r.engineer_owes, eng),
+                paint(status),
+            ]
+        )
     return table(["THREAD", "DESK", "GATE", "OWNER", "ENGINEER", "SYNC"], body)
 
 
@@ -104,7 +117,7 @@ def meter_table(office: Office, days: int | None = None) -> str:
     label, start, end = meter.window(office, days=days)
     sessions = meter.read_all()
     rows = meter.summarize(office, sessions, meter.read_launches(office), start, end)
-    now = dt.datetime.now(dt.timezone.utc)
+    now = dt.datetime.now(dt.UTC)
     body = []
     for u in rows:
         if u.turns == 0 and u.desk == meter.UNASSIGNED:
@@ -114,15 +127,24 @@ def meter_table(office: Office, days: int | None = None) -> str:
             p = u.pct or 0.0
             pct = (bad if p >= 100 else ok)(f"{p:.0f}%") + dim(f" of {meter.fmt_tokens(u.budget)}")
         proj = meter.projection(u.total, start, min(now, end)) if u.total else 0
-        body.append([
-            u.desk, u.harness, str(u.sessions), str(u.turns),
-            f"{meter.fmt_tokens(u.input)} ({meter.fmt_tokens(u.cached)})",
-            meter.fmt_tokens(u.output), meter.fmt_tokens(u.total), pct,
-            dim(f"{meter.fmt_tokens(proj)}/30d") if proj else "",
-        ])
+        body.append(
+            [
+                u.desk,
+                u.harness,
+                str(u.sessions),
+                str(u.turns),
+                f"{meter.fmt_tokens(u.input)} ({meter.fmt_tokens(u.cached)})",
+                meter.fmt_tokens(u.output),
+                meter.fmt_tokens(u.total),
+                pct,
+                dim(f"{meter.fmt_tokens(proj)}/30d") if proj else "",
+            ]
+        )
     if not body:
         return dim(f"no harness usage attributed to this office in {label}")
-    return f"{dim('usage')} {label}\n" + table(["DESK", "HARNESS", "SESS", "TURNS", "IN (cached)", "OUT", "TOTAL", "BUDGET", "PROJECTION"], body)
+    return f"{dim('usage')} {label}\n" + table(
+        ["DESK", "HARNESS", "SESS", "TURNS", "IN (cached)", "OUT", "TOTAL", "BUDGET", "PROJECTION"], body
+    )
 
 
 # -- commands --------------------------------------------------------------------
@@ -169,7 +191,10 @@ def cmd_check(a) -> None:
     if added:
         print(f"board: added {len(added)} thread(s): {', '.join(added)}")
     n_open = sum(1 for r in board.rows() if not r.closed)
-    print(ok("ok: ") + f"{office.name}: {len(office.desks)} desks, {len(office.gates)} gates, {len(office.threads)} threads ({n_open} open)")
+    print(
+        ok("ok: ")
+        + f"{office.name}: {len(office.desks)} desks, {len(office.gates)} gates, {len(office.threads)} threads ({n_open} open)"
+    )
 
 
 def cmd_board(a) -> None:
@@ -213,14 +238,20 @@ def cmd_deliver(a) -> None:
         die(str(e))
     board.save()
     paint = owner if a.hat == "owner" else eng
-    print(f"filed {paint(a.hat + ':' + a.item)} on {a.thread} at gate {row.gate if not advanced else dim('(previous)')}")
+    print(
+        f"filed {paint(a.hat + ':' + a.item)} on {a.thread} at gate {row.gate if not advanced else dim('(previous)')}"
+    )
     if advanced:
         print(ok("gate passed") + f" → {a.thread} is now at " + (ok("closed") if row.closed else row.gate))
     elif row.owes:
-        print("waiting on " + " · ".join(
-            f"{paint_(hat)} {', '.join(items)}"
-            for hat, items, paint_ in (("owner", row.owner_owes, owner), ("engineer", row.engineer_owes, eng))
-            if items))
+        print(
+            "waiting on "
+            + " · ".join(
+                f"{paint_(hat)} {', '.join(items)}"
+                for hat, items, paint_ in (("owner", row.owner_owes, owner), ("engineer", row.engineer_owes, eng))
+                if items
+            )
+        )
 
 
 def cmd_status(a) -> None:
@@ -232,9 +263,11 @@ def cmd_status(a) -> None:
     print(board_table(rows))
     out = [r for r in rows if not r.closed and r.owes]
     print()
-    print(dim(f"{len(out)} gate(s) out of sync · ") + " · ".join(
-        f"{r.thread}: {'/'.join(r.owes)}" for r in out
-    ) if out else ok("all open gates in sync"))
+    print(
+        dim(f"{len(out)} gate(s) out of sync · ") + " · ".join(f"{r.thread}: {'/'.join(r.owes)}" for r in out)
+        if out
+        else ok("all open gates in sync")
+    )
     print()
     print(meter_table(office))
 

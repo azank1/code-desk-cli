@@ -13,15 +13,30 @@ def _claude_file(root, slug, session, cwd, lines):
 
 def test_read_claude_dedupes_by_request_id(tmp_path):
     usage = {"input_tokens": 2, "cache_creation_input_tokens": 40, "cache_read_input_tokens": 8, "output_tokens": 5}
-    line = lambda rid, ts: {"type": "assistant", "requestId": rid, "sessionId": "s1", "cwd": "/repo", "timestamp": ts,
-                            "message": {"model": "m", "usage": usage}}
-    _claude_file(tmp_path, "-repo", "s1", "/repo", [
-        {"type": "custom-title", "customTitle": "dev", "sessionId": "s1"},
-        line("r1", "2026-09-21T10:00:00.000Z"),
-        line("r1", "2026-09-21T10:00:00.000Z"),   # same response, second content block
-        {"type": "user", "timestamp": "2026-09-21T10:00:01.000Z"},
-        line("r2", "2026-09-21T10:00:02.000Z"),
-    ])
+
+    def line(rid, ts):
+        return {
+            "type": "assistant",
+            "requestId": rid,
+            "sessionId": "s1",
+            "cwd": "/repo",
+            "timestamp": ts,
+            "message": {"model": "m", "usage": usage},
+        }
+
+    _claude_file(
+        tmp_path,
+        "-repo",
+        "s1",
+        "/repo",
+        [
+            {"type": "custom-title", "customTitle": "dev", "sessionId": "s1"},
+            line("r1", "2026-09-21T10:00:00.000Z"),
+            line("r1", "2026-09-21T10:00:00.000Z"),  # same response, second content block
+            {"type": "user", "timestamp": "2026-09-21T10:00:01.000Z"},
+            line("r2", "2026-09-21T10:00:02.000Z"),
+        ],
+    )
     (sess,) = meter.read_claude(tmp_path)
     assert sess.name == "dev" and sess.cwd == "/repo" and sess.harness == "claude"
     assert len(sess.turns) == 2
@@ -31,18 +46,52 @@ def test_read_claude_dedupes_by_request_id(tmp_path):
 def test_read_codex_uses_per_response_usage(tmp_path):
     d = tmp_path / "2026" / "09" / "21"
     d.mkdir(parents=True)
-    rec = lambda i, inp, out: {"timestamp": f"2026-09-21T10:00:0{i}Z", "ordinal": i, "type": "token_usage_record",
-                               "payload": {"thread_id": "t1", "usage": {"input_tokens": inp, "cached_input_tokens": 1, "cache_write_input_tokens": 0, "output_tokens": out},
-                                           "turn_token_usage": {"input_tokens": 999, "output_tokens": 999}}}
-    (d / "rollout-x.jsonl").write_text("\n".join(json.dumps(x) for x in [
-        {"timestamp": "2026-09-21T09:59:59Z", "ordinal": 0, "type": "session_meta", "payload": {"cwd": "/repo/src"}},
-        rec(1, 100, 10), rec(2, 120, 3), rec(2, 120, 3),
-    ]) + "\n")
-    (tmp_path.parent / "session_index.jsonl").write_text("\n".join(json.dumps(x) for x in [
-        {"id": "t1", "thread_name": "first name", "updated_at": "2026-09-21T10:00:00Z"},
-        {"id": "t1", "thread_name": "review", "updated_at": "2026-09-21T10:01:00Z"},
-        {"id": "other", "thread_name": "x", "updated_at": "2026-09-21T10:01:00Z"},
-    ]) + "\n")
+
+    def rec(i, inp, out):
+        return {
+            "timestamp": f"2026-09-21T10:00:0{i}Z",
+            "ordinal": i,
+            "type": "token_usage_record",
+            "payload": {
+                "thread_id": "t1",
+                "usage": {
+                    "input_tokens": inp,
+                    "cached_input_tokens": 1,
+                    "cache_write_input_tokens": 0,
+                    "output_tokens": out,
+                },
+                "turn_token_usage": {"input_tokens": 999, "output_tokens": 999},
+            },
+        }
+
+    (d / "rollout-x.jsonl").write_text(
+        "\n".join(
+            json.dumps(x)
+            for x in [
+                {
+                    "timestamp": "2026-09-21T09:59:59Z",
+                    "ordinal": 0,
+                    "type": "session_meta",
+                    "payload": {"cwd": "/repo/src"},
+                },
+                rec(1, 100, 10),
+                rec(2, 120, 3),
+                rec(2, 120, 3),
+            ]
+        )
+        + "\n"
+    )
+    (tmp_path.parent / "session_index.jsonl").write_text(
+        "\n".join(
+            json.dumps(x)
+            for x in [
+                {"id": "t1", "thread_name": "first name", "updated_at": "2026-09-21T10:00:00Z"},
+                {"id": "t1", "thread_name": "review", "updated_at": "2026-09-21T10:01:00Z"},
+                {"id": "other", "thread_name": "x", "updated_at": "2026-09-21T10:01:00Z"},
+            ]
+        )
+        + "\n"
+    )
     (sess,) = meter.read_codex(tmp_path)
     assert sess.harness == "codex" and sess.cwd == "/repo/src"
     assert [t.total for t in sess.turns] == [110, 123]
@@ -57,10 +106,10 @@ def _sess(harness, sid, cwd, name=None, ts="2026-09-21T10:00:00+00:00", tokens=1
 def test_attribution_rules(office):
     root = str(office.root)
     sessions = [
-        _sess("claude", "by-name", root, name="pm"),                       # rule 1
-        _sess("claude", "by-launch", root),                                # rule 2
-        _sess("claude", "unique-cwd", root + "/src"),                      # rule 3: only dev is claude@src
-        _sess("codex", "codex-root", root),                                # rule 3: only review is codex@root
+        _sess("claude", "by-name", root, name="pm"),  # rule 1
+        _sess("claude", "by-launch", root),  # rule 2
+        _sess("claude", "unique-cwd", root + "/src"),  # rule 3: only dev is claude@src
+        _sess("codex", "codex-root", root),  # rule 3: only review is codex@root
         _sess("claude", "ambiguous", root, ts="2026-09-21T15:00:00+00:00"),  # pm and dev? pm@root only -> pm
         _sess("claude", "elsewhere", "/somewhere/else"),
     ]

@@ -41,4 +41,4 @@ def office(tmp_path: Path):
 
 @pytest.fixture
 def now():
-    return dt.datetime(2026, 9, 21, 12, 0, tzinfo=dt.timezone.utc)
+    return dt.datetime(2026, 9, 21, 12, 0, tzinfo=dt.UTC)
