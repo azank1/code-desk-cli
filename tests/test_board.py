@@ -64,9 +64,9 @@ def test_rejects_wrong_item_and_double_file(office):
 def test_inboxes_split_by_hat(office):
     b = Board.load(office)
     b.deliver("a", "engineer", "estimate")
-    b.deliver("a", "engineer", "risks")          # a: owner owes
+    b.deliver("a", "engineer", "risks")  # a: owner owes
     b.deliver("b", "owner", "scope")
-    b.deliver("b", "owner", "priority")          # b: engineer owes
+    b.deliver("b", "owner", "priority")  # b: engineer owes
     # c: ready, engineer-first -> owner blocked, engineer owes
     assert [r.thread for r in b.inbox("owner")] == ["a"]
     assert [r.thread for r in b.inbox("engineer")] == ["b", "c"]

@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 dist/
 .pytest_cache/
+.ruff_cache/
+.office/board.yaml.bak

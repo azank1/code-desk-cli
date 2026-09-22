@@ -1,5 +1,3 @@
-import os
-
 import pytest
 
 from coding_desks import cli, launcher

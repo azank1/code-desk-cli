@@ -49,7 +49,7 @@ class Launch:
 def _ts(s: str) -> dt.datetime:
     d = dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
     if d.tzinfo is None:
-        d = d.replace(tzinfo=dt.timezone.utc)
+        d = d.replace(tzinfo=dt.UTC)
     return d
 
 
@@ -99,13 +99,15 @@ def read_claude(root: Path | None = None) -> list[Session]:
                         name=name,
                     )
                 cached = int(usage.get("cache_read_input_tokens") or 0)
-                inp = (
-                    int(usage.get("input_tokens") or 0)
-                    + int(usage.get("cache_creation_input_tokens") or 0)
-                    + cached
-                )
+                inp = int(usage.get("input_tokens") or 0) + int(usage.get("cache_creation_input_tokens") or 0) + cached
                 sess.turns.append(
-                    Turn(_ts(ts), (d.get("message") or {}).get("model"), inp, cached, int(usage.get("output_tokens") or 0))
+                    Turn(
+                        _ts(ts),
+                        (d.get("message") or {}).get("model"),
+                        inp,
+                        cached,
+                        int(usage.get("output_tokens") or 0),
+                    )
                 )
         if sess and sess.turns:
             out.append(sess)
@@ -207,9 +209,16 @@ def record_launch(office: Office, launch: Launch) -> None:
     data = yaml.safe_load(p.read_text()) if p.is_file() else []
     data = data or []
     data.append(
-        {"desk": launch.desk, "harness": launch.harness, "cwd": launch.cwd, "at": launch.at.isoformat(timespec="seconds")}
+        {
+            "desk": launch.desk,
+            "harness": launch.harness,
+            "cwd": launch.cwd,
+            "at": launch.at.isoformat(timespec="seconds"),
+        }
     )
-    p.write_text("# .office/launches.yaml — written by `desk up`, read by the meter.\n" + yaml.safe_dump(data, sort_keys=False))
+    p.write_text(
+        "# .office/launches.yaml — written by `desk up`, read by the meter.\n" + yaml.safe_dump(data, sort_keys=False)
+    )
 
 
 # -- attribution ---------------------------------------------------------------
@@ -240,11 +249,11 @@ def attribute(office: Office, sessions: list[Session], launches: list[Launch]) -
             continue
         # 2. a launch record just before the session began, same harness + cwd
         best: Launch | None = None
-        for l in launches:
-            if l.harness != s.harness or str(Path(l.cwd).resolve()) != str(Path(s.cwd).resolve()):
+        for ln in launches:
+            if ln.harness != s.harness or str(Path(ln.cwd).resolve()) != str(Path(s.cwd).resolve()):
                 continue
-            if l.at <= s.first_ts <= l.at + LAUNCH_MATCH_WINDOW and (best is None or l.at > best.at):
-                best = l
+            if ln.at <= s.first_ts <= ln.at + LAUNCH_MATCH_WINDOW and (best is None or ln.at > best.at):
+                best = ln
         if best:
             result[s.id] = best.desk
             continue
@@ -285,9 +294,7 @@ def summarize(
     end: dt.datetime,
 ) -> list[DeskUsage]:
     who = attribute(office, sessions, launches)
-    rows: dict[str, DeskUsage] = {
-        d.name: DeskUsage(d.name, d.harness, budget=d.budget) for d in office.desks.values()
-    }
+    rows: dict[str, DeskUsage] = {d.name: DeskUsage(d.name, d.harness, budget=d.budget) for d in office.desks.values()}
     for s in sessions:
         desk = who.get(s.id)
         if desk is None:
@@ -306,9 +313,11 @@ def summarize(
     return list(rows.values())
 
 
-def window(office: Office, now: dt.datetime | None = None, days: int | None = None) -> tuple[str, dt.datetime, dt.datetime]:
+def window(
+    office: Office, now: dt.datetime | None = None, days: int | None = None
+) -> tuple[str, dt.datetime, dt.datetime]:
     """(label, start, end) — the current sprint, or the last N days."""
-    now = now or dt.datetime.now(dt.timezone.utc)
+    now = now or dt.datetime.now(dt.UTC)
     sw = office.sprint_window(now.astimezone().date()) if days is None else None
     if sw:
         n, s, e = sw
@@ -321,14 +330,14 @@ def window(office: Office, now: dt.datetime | None = None, days: int | None = No
 
 
 def projection(total: int, start: dt.datetime, now: dt.datetime | None = None, horizon_days: int = 30) -> int:
-    now = now or dt.datetime.now(dt.timezone.utc)
+    now = now or dt.datetime.now(dt.UTC)
     elapsed = max((now - start).total_seconds() / 86400.0, 1.0)
     return int(total / elapsed * horizon_days)
 
 
 def fmt_tokens(n: int) -> str:
     if n >= 1_000_000:
-        return f"{n/1_000_000:.1f}M"
+        return f"{n / 1_000_000:.1f}M"
     if n >= 1_000:
-        return f"{n/1_000:.0f}k"
+        return f"{n / 1_000:.0f}k"
     return str(n)

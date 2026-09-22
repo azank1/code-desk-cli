@@ -78,7 +78,7 @@ class Board:
     # -- persistence -----------------------------------------------------
 
     @classmethod
-    def load(cls, office: Office) -> "Board":
+    def load(cls, office: Office) -> Board:
         path = office.board_path
         data = {}
         if path.is_file():
@@ -89,9 +89,7 @@ class Board:
             for gate, hats in (t.get("delivered") or {}).items():
                 delivered[gate] = {}
                 for hat, items in (hats or {}).items():
-                    delivered[gate][hat] = {
-                        item: Delivery(**(d or {})) for item, d in (items or {}).items()
-                    }
+                    delivered[gate][hat] = {item: Delivery(**(d or {})) for item, d in (items or {}).items()}
             threads[name] = ThreadState(gate=t.get("gate", CLOSED), delivered=delivered)
         b = cls(office, threads)
         b.reconcile()
@@ -165,17 +163,11 @@ class Board:
         row = self.row(thread)
         gate = self.office.gates[st.gate]
         if item not in gate.items(hat):
-            raise BoardError(
-                f"{hat} does not deliver {item!r} at gate {st.gate}; "
-                f"expected one of {gate.items(hat)}"
-            )
+            raise BoardError(f"{hat} does not deliver {item!r} at gate {st.gate}; expected one of {gate.items(hat)}")
         if row.blocked_hat == hat:
             other = "engineer" if hat == "owner" else "owner"
             owes = row.engineer_owes if other == "engineer" else row.owner_owes
-            raise BoardError(
-                f"gate {st.gate} is {gate.order}: {hat} may not file until "
-                f"{other} files {owes}"
-            )
+            raise BoardError(f"gate {st.gate} is {gate.order}: {hat} may not file until {other} files {owes}")
         if item in st.filed(st.gate, hat):
             raise BoardError(f"{hat}:{item} already filed at {st.gate} for {thread}")
         st.delivered.setdefault(st.gate, {}).setdefault(hat, {})[item] = Delivery(

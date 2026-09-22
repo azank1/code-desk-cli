@@ -116,11 +116,9 @@ The product requirements, architecture, stack and roadmap are in
 SVG under `docs/diagrams/`. That document is the source of truth for the
 idea; this README is the source of truth for how to run what exists.
 
-## Tests
+## Contributing
 
-```bash
-uv run pytest -q
-```
+See `CONTRIBUTING.md`. Short version: `uv sync`, `uv run pytest -q`, open a PR from a branch. Branches and PRs are unlimited; `main` takes four squash-merges a day.
 
 ## License
 
