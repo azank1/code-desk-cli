@@ -130,6 +130,35 @@ meter-cursor    ready     — verdict          tests-green, evidence  owner owes
 kb-cadence      shipped   acceptance         read-back v0.1.3       closed
 ```
 
+## Handing work between desks
+
+The board is owner-to-engineer inside one thread. Mail is desk-to-desk,
+across harnesses, and lives in its own store under `.office/mail/<desk>/`.
+
+```bash
+desk send dev "take auth-flow; scope and priority are filed" --thread auth-flow
+desk mail                 # unread count per desk
+desk mail --desk dev read # print dev's mail and mark it read
+```
+
+Delivery depends on the harness:
+
+| Harness | How mail reaches the desk |
+|---|---|
+| Claude Code | A project-scoped `UserPromptSubmit` hook (`desk hook claude`) returns unread mail as extra context at the start of the next turn. |
+| Cursor | Same, through a `beforeSubmitPrompt` hook in `.cursor/hooks.json` (`desk hook cursor`). Only in the interactive TUI: `cursor-agent -p` does not run project hooks, so keep Cursor desks in their tmux window. |
+| Codex | Pushed: `desk send` runs `codex queue --thread <desk>`, which works once you have named the Codex session after the desk (Codex has no flag for that; use its rename menu). Otherwise the file waits for `desk mail read`, which the role prompt asks for at every turn. |
+
+Both hooks were verified live: a nonce planted in a desk's mail came back
+from the model with file reads forbidden, and the message was marked read.
+
+`desk hooks` shows what would be written to the office's own
+`.claude/settings.json` and `.cursor/hooks.json`; `desk hooks --install`
+merges it in, keeping whatever is already there. Nothing under `~/` is
+touched. `desk up` sets `DESK=<name>` on each desk's process, which is
+how the hook knows whose mail to fetch, so `desk` must be on the `PATH`
+the harness runs with.
+
 ## The manifest
 
 `office.yaml` is the contract. Edit it like code, review it in PRs.
@@ -208,14 +237,10 @@ estimated in their place.
 | `desk board` | The full table. |
 | `desk inbox --as owner\|engineer` | What one hat owes right now, and what it is waiting on. |
 | `desk deliver <thread> <hat> <item> [--note] [--evidence]` | File one deliverable at the thread's current gate. Refused if the item is wrong, already filed, or blocked by `engineer-first`. |
+| `desk send <desk> "<message>" [--thread T] [--from D]` | Mail another desk. Codex desks also get a `codex queue` push when a session carries the desk's name. |
+| `desk mail [--desk D] [read]` | Unread count per desk, or one desk's mail; `read` prints and marks read. |
+| `desk hooks [--install]` | Show or merge the project-scoped turn-start hooks that deliver mail to Claude Code and Cursor desks. |
 | `desk meter [--days N]` | Tokens per desk for the current sprint, or the last N days, against budget, with a 30-day projection. |
-
-Cursor is different. `cursor-agent` writes its sessions to
-`~/.cursor/chats/**/{meta.json,store.db}` with the directory, the start
-time, the session name and every message, but no token counts, and the
-IDE's own database has none either (checked 2026-09-22). So a `cursor`
-desk is attributed and its turns are counted, and its token columns say
-`n/a`. Nothing is estimated in their place.
 
 ## Design
 
@@ -225,10 +250,9 @@ SVG under [`docs/diagrams/`](docs/diagrams/). That document is the source
 of truth for the idea. This README is the source of truth for running what
 exists.
 
-**Roadmap, short form:** `desk estimate` (which plan tier each desk needs
-at the measured cadence, only after seven days of history) · per-desk
-mailbox so a PM desk can hand a thread to a dev desk in another harness ·
-signed receipts at the `shipped` gate.
+**Roadmap, short form:** signed receipts at the `shipped` gate · board
+export as a view, never the source · a dogfooded sprint before anything
+is called 0.1.
 
 ## Contributing
 

@@ -10,3 +10,5 @@ two hats: owner and engineer.
   `desk deliver <thread> engineer evidence --evidence <path-or-sha>`
 - A read-back is a version string you observed, never a status word.
 - If scope is unclear, write the question into the thread and stop.
+- Check `desk mail read` at the start of every turn; the PM desk hands you
+  threads that way. Reply with `desk send pm "..."` when you need a decision.

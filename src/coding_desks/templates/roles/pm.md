@@ -10,3 +10,5 @@ wears two hats: owner and engineer. You never decide for the owner.
   empty owner column.
 - Progress is derived from git and the board, never typed in.
 - File your own deliverables with `desk deliver <thread> engineer <item>`.
+- Hand work to another desk with `desk send <desk> "..." --thread <thread>`; check
+  your own mail with `desk mail read` at the start of every turn.
