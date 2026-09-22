@@ -202,7 +202,7 @@ estimated in their place.
 |---|---|
 | `desk init` | Write `office.yaml` and the three starter role prompts. |
 | `desk intake "<paragraph>"` | Print a prompt that turns your description into `office.yaml`, for the harness you are already in. |
-| `desk check` | Validate the manifest. Warn on desks with no threads, threads with no milestone, gates nobody uses. |
+| `desk check` | Validate the manifest. Warn on missing role files, bad desk directories, an unset sprint start, desks with no threads. |
 | `desk up [--dry-run] [--no-attach]` | Open a tmux session, one window per desk, each harness carrying its role. |
 | `desk status` | Sprint header, every thread's gate, who owes what. |
 | `desk board` | The full table. |
