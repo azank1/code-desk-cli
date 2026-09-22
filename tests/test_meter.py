@@ -193,3 +193,56 @@ def test_summarize_reports_unmetered_turns(office, now):
     rows = {u.desk: u for u in meter.summarize(office, [cursor, claude], [], t - dt.timedelta(days=1), now)}
     assert rows["review"].turns == 4 and rows["review"].unmetered == 4 and rows["review"].total == 0
     assert rows["pm"].turns == 1 and rows["pm"].unmetered == 0 and rows["pm"].total == 110
+
+
+def _turns(t0, days, per_day, tokens):
+    return [Turn(t0 + dt.timedelta(days=d, hours=h), None, tokens, 0, 0) for d in range(days) for h in range(per_day)]
+
+
+def test_estimate_refuses_under_min_days_and_projects_after(office, now):
+    root = str(office.root)
+    old = Session(
+        "claude", "old", root, now - dt.timedelta(days=10), "pm", _turns(now - dt.timedelta(days=10), 10, 2, 1000)
+    )
+    young = Session(
+        "claude",
+        "young",
+        root + "/src",
+        now - dt.timedelta(days=2),
+        "dev",
+        _turns(now - dt.timedelta(days=2), 2, 1, 500),
+    )
+    rows, refused = meter.estimate(office, [old, young], [], now=now)
+    assert refused == ["dev: 2.0 days of history, need 7"]
+    (e,) = rows
+    assert e.desk == "pm" and e.turns == 20 and e.total == 20_000 and e.active_days == 10
+    assert 9.9 < e.history_days < 10.1
+    assert e.per_sprint == int(20_000 / e.history_days * 7)
+    assert e.per_month == int(20_000 / e.history_days * 30)
+    assert e.budget == 1000 and e.budget_ratio == e.per_sprint / 1000
+
+
+def test_estimate_skips_desks_with_no_turns_and_marks_unmetered(office, now):
+    root = str(office.root)
+    cur = Session(
+        "cursor",
+        "c",
+        root,
+        now - dt.timedelta(days=8),
+        "review",
+        _turns(now - dt.timedelta(days=8), 8, 1, 0),
+        metered=False,
+    )
+    rows, refused = meter.estimate(office, [cur], [], now=now)
+    assert refused == [] and [e.desk for e in rows] == ["review"]
+    assert rows[0].unmetered and rows[0].plan([]) == (None, False)
+
+
+def test_estimate_plan_picks_smallest_covering_tier(office, now):
+    from coding_desks.manifest import Plan
+
+    e = meter.DeskEstimate("pm", "claude", 30.0, 30, 1, 60_000_000, False, None, 7)
+    tiers = [Plan("pro", 40_000_000), Plan("max", 200_000_000)]
+    assert e.per_month == 60_000_000
+    assert e.plan(tiers) == ("max", True)
+    assert e.plan(tiers[:1]) == ("pro", False)

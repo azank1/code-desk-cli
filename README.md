@@ -190,6 +190,13 @@ dev     claude   5     1105   130.1M (124.0M)  2.1M    132.2M   367% of 36.0M  3
 review  cursor   2     96     n/a              n/a     n/a      no data
 ```
 
+`desk estimate` turns the same history into a pace: tokens over the whole
+measured span divided by days, then per sprint and per 30 days. If
+`office.yaml` lists `plans` for a harness (tiers in tokens per month, your
+own numbers, the tool ships none), it names the smallest tier that covers
+each desk. A desk with under seven days of history gets a refusal, not a
+guess.
+
 **Cursor** is different. `cursor-agent` writes the directory, start time,
 session name and every message to `~/.cursor/chats`, but no token counts,
 and the IDE's own database has none either. A `cursor` desk is attributed
@@ -209,6 +216,7 @@ estimated in their place.
 | `desk inbox --as owner\|engineer` | What one hat owes right now, and what it is waiting on. |
 | `desk deliver <thread> <hat> <item> [--note] [--evidence]` | File one deliverable at the thread's current gate. Refused if the item is wrong, already filed, or blocked by `engineer-first`. |
 | `desk meter [--days N]` | Tokens per desk for the current sprint, or the last N days, against budget, with a 30-day projection. |
+| `desk estimate [--min-days N]` | What each desk needs per sprint and per 30 days at its measured pace, and the smallest plan tier from `office.yaml` that covers it. Refuses to print a number for any desk with under seven days of history. |
 
 Cursor is different. `cursor-agent` writes its sessions to
 `~/.cursor/chats/**/{meta.json,store.db}` with the directory, the start
@@ -225,10 +233,9 @@ SVG under [`docs/diagrams/`](docs/diagrams/). That document is the source
 of truth for the idea. This README is the source of truth for running what
 exists.
 
-**Roadmap, short form:** `desk estimate` (which plan tier each desk needs
-at the measured cadence, only after seven days of history) · per-desk
-mailbox so a PM desk can hand a thread to a dev desk in another harness ·
-signed receipts at the `shipped` gate.
+**Roadmap, short form:** per-desk mailbox so a PM desk can hand a thread
+to a dev desk in another harness · signed receipts at the `shipped` gate ·
+board export as a view, never the source.
 
 ## Contributing
 

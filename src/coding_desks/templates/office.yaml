@@ -25,7 +25,7 @@ gates:
     engineer: [read-back, receipt]
     order: engineer-first
 
-# Desks. `harness` is claude | codex | custom. `cwd` is relative to this file.
+# Desks. `harness` is claude | codex | cursor | custom. `cwd` is relative to this file.
 # `budget` is tokens per sprint (input + output, cached included) and is optional.
 desks:
   pm:
@@ -54,3 +54,13 @@ threads:
   - name: example-thread
     desk: dev
     milestone: first-release
+
+# Optional. Subscription tiers you would buy, in tokens per 30 days, per
+# harness. `desk estimate` picks the smallest tier that covers each desk's
+# measured pace. No vendor numbers ship with the tool: limits are not
+# published in tokens and change; put in what you have observed.
+# plans:
+#   claude:
+#     - { name: pro,     tokens_per_month: 40_000_000 }
+#     - { name: max-5x,  tokens_per_month: 200_000_000 }
+#     - { name: max-20x, tokens_per_month: 800_000_000 }
