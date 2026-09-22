@@ -9,7 +9,7 @@ from pathlib import Path
 import yaml
 
 HATS = ("owner", "engineer")
-HARNESSES = ("claude", "codex", "custom")
+HARNESSES = ("claude", "codex", "cursor", "custom")
 OFFICE_FILE = "office.yaml"
 STATE_DIR = ".office"
 BOARD_FILE = "board.yaml"

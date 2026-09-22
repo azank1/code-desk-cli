@@ -36,6 +36,7 @@ class Session:
     first_ts: dt.datetime
     name: str | None = None
     turns: list[Turn] = field(default_factory=list)
+    metered: bool = True  # False when the harness writes no token counts to disk
 
 
 @dataclass
@@ -178,9 +179,78 @@ def read_codex(root: Path | None = None) -> list[Session]:
     return out
 
 
-def read_all(claude_root: Path | None = None, codex_root: Path | None = None) -> list[Session]:
+def read_cursor(root: Path | None = None) -> list[Session]:
+    """~/.cursor/chats/<workspace-hash>/<session>/{meta.json,store.db}: sessions, no tokens.
+
+    meta.json carries cwd, createdAtMs, updatedAtMs. store.db has a `meta`
+    row (hex JSON with the session name) and one `blobs` row per message,
+    role in the JSON. Neither the CLI stores nor the IDE's state.vscdb carry
+    per-response token counts (verified 2026-09-22: 39k IDE bubbles all
+    zero, 99k CLI blobs without a usage field), so every turn is 0 tokens
+    and the session is marked unmetered. Messages carry no timestamps; all
+    turns sit at the session's creation time.
+    """
+    import sqlite3
+
+    root = root or Path.home() / ".cursor" / "chats"
+    out: list[Session] = []
+    for meta_path in sorted(root.glob("*/*/meta.json")):
+        try:
+            meta = json.loads(meta_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not meta.get("hasConversation"):
+            continue
+        db = meta_path.with_name("store.db")
+        if not db.is_file():
+            continue
+        created = meta.get("createdAtMs")
+        if not created:
+            continue
+        ts = dt.datetime.fromtimestamp(created / 1000, dt.UTC)
+        name: str | None = None
+        n_assistant = 0
+        try:
+            con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+            try:
+                for (value,) in con.execute("select value from meta"):
+                    try:
+                        name = json.loads(bytes.fromhex(value)).get("name") or name
+                    except (ValueError, AttributeError):
+                        continue
+                # message blobs are JSON whose first key is `role`; encrypted
+                # blobs are binary and never match. Same count as parsing
+                # every blob, checked over 67 stores, at half the time.
+                (n_assistant,) = con.execute(
+                    """select count(*) from blobs where cast(substr(data, 1, 19) as text) = '{"role":"assistant"'"""
+                ).fetchone()
+            finally:
+                con.close()
+        except sqlite3.Error:
+            continue
+        if n_assistant == 0:
+            continue
+        if name == "New Agent":  # Cursor's default, carries no information
+            name = None
+        out.append(
+            Session(
+                "cursor",
+                meta_path.parent.name,
+                meta.get("cwd") or "",
+                ts,
+                name=name,
+                turns=[Turn(ts, None, 0, 0, 0) for _ in range(n_assistant)],
+                metered=False,
+            )
+        )
+    return out
+
+
+def read_all(
+    claude_root: Path | None = None, codex_root: Path | None = None, cursor_root: Path | None = None
+) -> list[Session]:
     sessions = []
-    for reader, root in ((read_claude, claude_root), (read_codex, codex_root)):
+    for reader, root in ((read_claude, claude_root), (read_codex, codex_root), (read_cursor, cursor_root)):
         try:
             sessions.extend(reader(root))
         except FileNotFoundError:
@@ -276,6 +346,7 @@ class DeskUsage:
     cached: int = 0
     output: int = 0
     budget: int | None = None
+    unmetered: int = 0  # turns from sessions whose harness writes no token counts
 
     @property
     def total(self) -> int:
@@ -307,6 +378,8 @@ def summarize(
             row.harness = "mixed"
         row.sessions += 1
         row.turns += len(turns)
+        if not s.metered:
+            row.unmetered += len(turns)
         row.input += sum(t.input for t in turns)
         row.cached += sum(t.cached for t in turns)
         row.output += sum(t.output for t in turns)
