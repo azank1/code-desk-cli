@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import os
 import shlex
 import sys
 from importlib import resources
 from pathlib import Path
 
-from . import __version__, meter
+from . import __version__, hooks, mail, meter
 from .board import Board, BoardError, SyncRow
 from .intake import build_prompt
 from .launcher import LaunchError, up
@@ -280,6 +281,91 @@ def cmd_meter(a) -> None:
     print(meter_table(office, days=a.days))
 
 
+def _desk_arg(a, required: bool = True) -> str | None:
+    desk = getattr(a, "desk", None) or mail.current_desk()
+    if desk is None and required:
+        die("which desk? pass --desk NAME or run inside a desk started by `desk up` (DESK is set)")
+    return desk
+
+
+def cmd_send(a) -> None:
+    office = _office()
+    sender = a.sender or mail.current_desk() or "you"
+    try:
+        path = mail.send(office, a.desk, a.message, sender, thread=a.thread)
+    except mail.MailError as e:
+        die(str(e))
+    print(f"sent to {eng(a.desk)} as {sender}: {dim(str(path.relative_to(office.root)))}")
+    if office.desks[a.desk].harness == "codex":
+        pushed, why = mail.codex_push(a.desk, f"[desk mail] new mail from {sender}; run `desk mail read`.")
+        print(
+            ok("codex: queued a pointer on the session named " + a.desk)
+            if pushed
+            else dim(f"codex: not pushed ({why}); the file waits for `desk mail read`")
+        )
+
+
+def cmd_mail(a) -> None:
+    office = _office()
+    if a.desk is None and mail.current_desk() is None and not a.read:
+        rows = [(d, len(mail.unread(office, d))) for d in office.desks]
+        print(table(["DESK", "UNREAD"], [[d, str(n) if n == 0 else bad(str(n))] for d, n in rows]))
+        return
+    desk = _desk_arg(a)
+    if desk not in office.desks:
+        die(f"no desk named {desk!r}")
+    msgs = mail.unread(office, desk)
+    if not msgs:
+        print(dim(f"no unread mail for {desk}"))
+        return
+    print(mail.render(desk, msgs))
+    if a.read:
+        mail.mark_read(msgs)
+        print(dim(f"{len(msgs)} marked read"))
+
+
+def cmd_hook(a) -> None:
+    """Turn-start hook body. Prints the harness's JSON; never fails the turn."""
+    try:
+        sys.stdin.read()  # the harness's payload; nothing in it we need, DESK carries identity
+    except OSError:
+        pass
+    context = None
+    try:
+        office = load()
+        desk = mail.current_desk()
+        if desk and desk in office.desks:
+            msgs = mail.unread(office, desk)
+            if msgs:
+                context = mail.render(desk, msgs)
+                mail.mark_read(msgs)
+    except (ManifestError, OSError):
+        context = None
+    try:
+        print(mail.hook_output(a.harness, context))
+    except mail.MailError as e:
+        die(str(e))
+
+
+def cmd_hooks(a) -> None:
+    office = _office()
+    try:
+        plan = hooks.plan(office)
+    except ValueError as e:
+        die(str(e))
+    if not plan:
+        print(dim("no desk uses claude or cursor; nothing to install (codex is pushed to with `codex queue`)"))
+        return
+    if a.install:
+        for path, changed in hooks.install(office):
+            print((ok("wrote ") if changed else dim("already there ")) + str(path.relative_to(office.root)))
+        return
+    for path, harness, content, changed in plan:
+        print(f"{path.relative_to(office.root)}  ({harness}, {'would change' if changed else 'already installed'})")
+        print(dim(json.dumps(content, indent=2)))
+    print(dim("run `desk hooks --install` to write these; only the office's own .claude/ and .cursor/ are touched"))
+
+
 def cmd_up(a) -> None:
     office = _office()
     try:
@@ -331,6 +417,26 @@ def main(argv: list[str] | None = None) -> None:
     s = sp.add_parser("meter", help="harness usage per desk from the transcript logs")
     s.add_argument("--days", type=int, help="ignore the sprint window and use the last N days")
     s.set_defaults(fn=cmd_meter)
+
+    s = sp.add_parser("send", help="mail another desk (any harness)")
+    s.add_argument("desk")
+    s.add_argument("message")
+    s.add_argument("--thread", help="the thread this is about")
+    s.add_argument("--from", dest="sender", help="who is sending (default: $DESK, else 'you')")
+    s.set_defaults(fn=cmd_send)
+
+    s = sp.add_parser("mail", help="unread mail per desk, or one desk's mail")
+    s.add_argument("--desk", help="which desk (default: $DESK)")
+    s.add_argument("read", nargs="?", choices=["read"], help="print and mark read")
+    s.set_defaults(fn=cmd_mail)
+
+    s = sp.add_parser("hook", help="turn-start hook body for a harness (installed by `desk hooks`)")
+    s.add_argument("harness", choices=["claude", "cursor"])
+    s.set_defaults(fn=cmd_hook)
+
+    s = sp.add_parser("hooks", help="show or install the project-scoped turn-start hooks that deliver mail")
+    s.add_argument("--install", action="store_true")
+    s.set_defaults(fn=cmd_hooks)
 
     s = sp.add_parser("up", help="open the office: one tmux window per desk")
     s.add_argument("--dry-run", action="store_true", help="print the tmux commands only")

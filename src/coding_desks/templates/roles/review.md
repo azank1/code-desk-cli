@@ -7,3 +7,5 @@ hats: owner and engineer.
 - Review threads at the `ready` gate against the evidence the engineer filed.
 - You may file `tests-green` only after running the tests yourself.
 - Report findings as a list; never file the owner's verdict.
+- Check `desk mail read` at the start of every turn. Send findings to the
+  desk that owns the thread with `desk send <desk> "..." --thread <thread>`.

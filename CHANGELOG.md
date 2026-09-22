@@ -7,6 +7,16 @@ All notable changes to this project are recorded here. Format follows
 ## [Unreleased]
 
 ### Added
+- Desk-to-desk mail in `.office/mail/<desk>/`: `desk send`, `desk mail`,
+  `desk mail read`. Separate from the board on purpose: the board is
+  owner-to-engineer inside a thread, mail crosses desks and harnesses.
+- Turn-start delivery: `desk hook claude` (UserPromptSubmit,
+  `additionalContext`) and `desk hook cursor` (beforeSubmitPrompt,
+  `additional_context`), installed project-scoped by `desk hooks --install`
+  with a read-then-merge that keeps existing hooks. Codex is pushed to with
+  `codex queue --thread <desk>` when a session carries the desk's name.
+- `desk up` sets `DESK=<name>` on every desk's process; role prompts ask
+  for `desk mail read` at the start of each turn.
 - `cursor` harness: `desk up` launches `cursor-agent` with the same pointer
   prompt as Codex; the meter reads `~/.cursor/chats` and attributes sessions
   by name, launch record or directory.

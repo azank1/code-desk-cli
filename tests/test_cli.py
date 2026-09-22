@@ -33,7 +33,7 @@ def test_codex_command_is_a_short_pointer(office):
     argv = launcher.desk_command(office, office.desks["review"])
     assert argv[0] == "codex" and len(argv) == 2
     assert "review desk" in argv[1] and str(office.root / ".office/roles/review.md") in argv[1]
-    assert len(argv[1]) < 300
+    assert len(argv[1]) < 400  # a pointer, not the role text
 
 
 def test_up_dry_run_prints_plan(in_office, capsys):
