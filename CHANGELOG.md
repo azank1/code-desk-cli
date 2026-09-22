@@ -7,6 +7,12 @@ All notable changes to this project are recorded here. Format follows
 ## [Unreleased]
 
 ### Added
+- `desk estimate`: per-desk pace from measured history (tokens / days),
+  projected per sprint and per 30 days, compared with the sprint budget and
+  with the `plans` tiers in `office.yaml`. Refuses any desk with under seven
+  days of history (`--min-days`). Cursor desks show `n/a`.
+- `plans` section in `office.yaml`: subscription tiers per harness in
+  tokens per month. The tool ships no vendor numbers.
 - `cursor` harness: `desk up` launches `cursor-agent` with the same pointer
   prompt as Codex; the meter reads `~/.cursor/chats` and attributes sessions
   by name, launch record or directory.
