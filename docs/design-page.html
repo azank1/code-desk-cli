@@ -1,0 +1,234 @@
+<title>Coding Desks Blueprint</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F3F5F7; --panel:#FFFFFF; --ink:#1B2430; --muted:#5A6675; --line:#D5DBE2;
+  --owner:#B8741A; --owner-soft:#F7EBD8; --eng:#1D6F8F; --eng-soft:#DCEEF5;
+  --term-bg:#1B2430; --term-ink:#E6EAEE; --term-dim:#8A96A3; --term-owner:#E0A24A; --term-eng:#5CC1E0; --term-bad:#F08C7B; --term-ok:#7FD39A;
+  --later:#8A96A3;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12171D; --panel:#1B2430; --ink:#E6EAEE; --muted:#98A3AE; --line:#2C3743;
+    --owner:#E0A24A; --owner-soft:#3A2C16; --eng:#5CC1E0; --eng-soft:#14303C;
+    --term-bg:#0C1015; --later:#6E7A87;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12171D; --panel:#1B2430; --ink:#E6EAEE; --muted:#98A3AE; --line:#2C3743;
+  --owner:#E0A24A; --owner-soft:#3A2C16; --eng:#5CC1E0; --eng-soft:#14303C;
+  --term-bg:#0C1015; --later:#6E7A87;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.55;padding-inline:16px;padding-block:32px 64px}
+.wrap{max-width:900px;margin:0 auto;display:grid;gap:44px}
+h1,h2,h3{font-family:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif;text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:2.3rem;font-weight:600;letter-spacing:-.01em}
+h2{font-size:1.45rem;font-weight:600}
+h3{font-size:1.05rem;font-weight:600}
+p{margin:0;max-width:66ch}
+.eyebrow{font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600}
+header{display:grid;gap:14px}
+.lede{font-size:1.1rem;color:var(--muted);max-width:60ch}
+.hats{display:flex;flex-wrap:wrap;gap:10px}
+.hat{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;font-size:.85rem;font-weight:500}
+.hat.owner{background:var(--owner-soft);color:var(--owner)}
+.hat.eng{background:var(--eng-soft);color:var(--eng)}
+.hat i{width:9px;height:9px;border-radius:50%;background:currentColor;display:inline-block}
+section{display:grid;gap:18px}
+.stack-diagram{display:grid;gap:8px}
+.layer{display:grid;grid-template-columns:150px 1fr;gap:14px;align-items:start;border:1px solid var(--line);background:var(--panel);padding:14px 16px;border-radius:6px}
+.layer.repo{border-left:4px solid var(--owner)}
+.layer.engine{border-left:4px solid var(--eng)}
+.layer.later{border-style:dashed;color:var(--later)}
+.layer .name{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.85rem;font-weight:500}
+.layer .what{display:grid;gap:4px}
+.layer .what span{font-size:.85rem;color:var(--muted)}
+.layer.later .what span{color:var(--later)}
+.arrow{text-align:center;color:var(--muted);font-size:.8rem;letter-spacing:.06em}
+.journey{display:grid;gap:0;counter-reset:step}
+.step{display:grid;grid-template-columns:34px 1fr;gap:14px;padding:14px 0;border-top:1px solid var(--line)}
+.step:last-child{border-bottom:1px solid var(--line)}
+.step .n{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.85rem;color:var(--muted);padding-top:3px;font-variant-numeric:tabular-nums}
+.step .body{display:grid;gap:4px}
+.step .who{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.step .who b{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:4px;font-weight:600}
+.who .o{background:var(--owner-soft);color:var(--owner)}
+.who .e{background:var(--eng-soft);color:var(--eng)}
+.who .m{background:var(--line);color:var(--muted)}
+code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.9em;background:var(--panel);border:1px solid var(--line);padding:1px 5px;border-radius:4px}
+.terms{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.term{background:var(--term-bg);color:var(--term-ink);border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+.term .bar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(255,255,255,.05);font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.75rem;color:var(--term-dim)}
+.term .bar i{width:9px;height:9px;border-radius:50%;background:var(--term-dim);opacity:.5;display:inline-block}
+.term pre{margin:0;padding:12px 14px;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.78rem;line-height:1.5;overflow-x:auto;white-space:pre}
+.term .o{color:var(--term-owner)}.term .e{color:var(--term-eng)}.term .d{color:var(--term-dim)}.term .bad{color:var(--term-bad)}.term .ok{color:var(--term-ok)}
+.term.wide{grid-column:1/-1}
+.tmux{display:grid;grid-template-columns:1fr 1fr;gap:2px;background:var(--term-dim);padding:2px}
+.tmux .pane{background:var(--term-bg);padding:10px 12px;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.75rem;line-height:1.5;min-height:110px}
+.tmux .pane .t{color:var(--term-dim);margin-bottom:6px}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+td.o{color:var(--owner);font-weight:500}td.e{color:var(--eng);font-weight:500}
+td code{background:transparent;border:0;padding:0}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}
+.list{display:grid;gap:8px;padding:0;margin:0;list-style:none}
+.list li{display:grid;grid-template-columns:auto 1fr;gap:10px;font-size:.92rem}
+.list li::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--eng);margin-top:9px}
+.list.later li::before{background:var(--later)}
+.list.later li{color:var(--muted)}
+.note{border-left:3px solid var(--owner);padding-left:14px;color:var(--muted);font-size:.92rem}
+@media (max-width:560px){
+  h1{font-size:1.8rem}
+  .layer{grid-template-columns:1fr;gap:6px}
+  .tmux{grid-template-columns:1fr}
+}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Design note · 2026-09-21 · v0 scope</div>
+  <h1>Coding Desks</h1>
+  <p class="lede">An office of coding-harness sessions you already pay for, run from the CLI. One person wears two hats. The tool keeps them apart and makes every handoff between them a file in the repo.</p>
+  <div class="hats">
+    <span class="hat owner"><i></i>Owner hat: decides scope, priority, acceptance</span>
+    <span class="hat eng"><i></i>Engineer hat: delivers estimates, evidence, read-backs</span>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow">Architecture</div>
+  <h2>Files in the repo are the source. Everything else reads them.</h2>
+  <div class="stack-diagram">
+    <div class="layer repo"><div class="name">office.yaml</div><div class="what">The contract. Hats, desks, gates with two-sided deliverables, threads, milestones, cadence, budget.<span>Written once from your paragraph, confirmed by the owner hat, then edited like code.</span></div></div>
+    <div class="layer repo"><div class="name">.office/board.yaml</div><div class="what">The state. Each thread's current gate and which deliverables each hat has filed, with evidence and a timestamp.<span>Git-tracked, diffable, receiptable. Progress is derived from this and from git, never typed in.</span></div></div>
+    <div class="layer repo"><div class="name">.office/roles/*.md</div><div class="what">One system prompt per desk. Product manager, developer, reviewer by default.<span>Plain markdown. The launcher appends it to the harness's own system prompt.</span></div></div>
+    <div class="arrow">read and written by</div>
+    <div class="layer engine"><div class="name">desks.core</div><div class="what">Manifest validation, the gate handshake, sync check, inbox derivation.<span>Pure functions over the two YAML files. No network, no keys, no daemon.</span></div></div>
+    <div class="layer engine"><div class="name">desks.meter</div><div class="what">Readers for the transcript logs each harness already writes to disk. Attributes turns to desks by working directory and harness, sums per day and per sprint, projects the month.<span>Claude Code: per-turn usage in the project transcript, deduped by request id. Codex: per-turn usage records in the session rollout. Cursor: reader pending.</span></div></div>
+    <div class="layer engine"><div class="name">desks.up</div><div class="what">Launcher. One tmux window per desk, the harness started with the desk's role prompt and a session name.<span>Claude Code uses its append-system-prompt flag; Codex takes the role as its first prompt; any other harness runs the command you put in the manifest.</span></div></div>
+    <div class="layer engine"><div class="name">desks.intake</div><div class="what">Turns your messy paragraph into office.yaml. It prints a prompt for the harness you are already sitting in, which writes the file. Then <code>desk check</code> validates it.<span>No API key. The harness you pay for does the parsing.</span></div></div>
+    <div class="arrow">exposed as</div>
+    <div class="layer engine"><div class="name">desk</div><div class="what">The CLI. <code>init</code> · <code>intake</code> · <code>check</code> · <code>board</code> · <code>inbox --as owner|engineer</code> · <code>deliver</code> · <code>status</code> · <code>meter</code> · <code>up</code><span>Installed with one <code>uvx coding-desks</code>. Useful with a single desk on day one.</span></div></div>
+    <div class="arrow">later, not v0</div>
+    <div class="layer later"><div class="name">mailbox</div><div class="what">A per-desk inbox directory read by a turn-start hook, so a PM desk can hand a thread to a dev desk in another harness.<span>Codex already has a queue command that pushes a message into a running session. Claude Code has hooks. Cursor has hooks.</span></div></div>
+    <div class="layer later"><div class="name">receipts</div><div class="what">The engineer's deliverable at the shipped gate becomes a signed record, so what the owner accepted is what was done.<span>Accepts a receipt produced by an external hook; never signs anything itself.</span></div></div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Journey</div>
+  <h2>From a paragraph to a running office in one sitting</h2>
+  <div class="journey">
+    <div class="step"><div class="n">1</div><div class="body"><h3>Install and initialise inside the repo</h3><p><code>uvx coding-desks init</code> writes a template manifest, an empty board and three role prompts. Nothing runs yet.</p><div class="who"><b class="e">engineer</b></div></div></div>
+    <div class="step"><div class="n">2</div><div class="body"><h3>Paste the messy paragraph</h3><p><code>desk intake</code> prints a prompt carrying the manifest schema. You run it in the harness you are sitting in and it writes office.yaml from your own words.</p><div class="who"><b class="o">owner</b><b class="m">harness</b></div></div></div>
+    <div class="step"><div class="n">3</div><div class="body"><h3>Confirm the manifest</h3><p><code>desk check</code> validates it and <code>desk board</code> shows threads, milestones and gate contracts. This is the moment the owner hat is forced to exist. Edit the file if it is wrong.</p><div class="who"><b class="o">owner</b></div></div></div>
+    <div class="step"><div class="n">4</div><div class="body"><h3>Open the office</h3><p><code>desk up</code> starts a tmux session with one window per desk, each harness carrying its role prompt and a session name.</p><div class="who"><b class="e">engineer</b></div></div></div>
+    <div class="step"><div class="n">5</div><div class="body"><h3>Work through gates</h3><p>A desk that reaches a gate files its half: <code>desk deliver auth-hook engineer estimate --note "2d, touches settle path"</code>. The thread waits until the owner files the other half. A desk never guesses past an empty owner column.</p><div class="who"><b class="e">engineer</b><b class="o">owner</b></div></div></div>
+    <div class="step"><div class="n">6</div><div class="body"><h3>Read your inbox by hat</h3><p><code>desk inbox --as owner</code> lists only pending verdicts. <code>desk inbox --as engineer</code> lists only runnable threads. Same board, two views, one person.</p><div class="who"><b class="o">owner</b><b class="e">engineer</b></div></div></div>
+    <div class="step"><div class="n">7</div><div class="body"><h3>Close the sprint on evidence</h3><p><code>desk status</code> shows the sprint window, threads by gate, gates out of sync and who owes what, and spend per desk against budget from the transcript logs. A sprint is a budget window with a milestone in it.</p><div class="who"><b class="o">owner</b></div></div></div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Gate contracts</div>
+  <h2>A gate passes when both columns are filled</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Gate</th><th>Owner gives</th><th>Engineer gives</th><th>Sync check reports</th></tr></thead>
+    <tbody>
+      <tr><td><code>scope</code></td><td class="o">scope · priority</td><td class="e">estimate · risks</td><td>which hat owes which item</td></tr>
+      <tr><td><code>ready</code></td><td class="o">verdict</td><td class="e">tests-green · evidence</td><td>a verdict filed on no evidence is refused</td></tr>
+      <tr><td><code>shipped</code></td><td class="o">acceptance</td><td class="e">deploy read-back · receipt</td><td>a read-back is a version string, never a status word</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">The engineer side of every gate is evidence. The owner side is a decision. Timeline drift stops being a feeling: it is the list of gates with one empty column.</p>
+</section>
+
+<section>
+  <div class="eyebrow">UI</div>
+  <h2>Three screens carry the whole product</h2>
+  <div class="terms">
+    <div class="term"><div class="bar"><i></i><i></i><i></i>desk inbox --as owner</div><pre><span class="o">OWNER INBOX</span>  sprint 3 · 2 days left
+
+<span class="o">▶</span> auth-hook      scope     owes: <span class="o">scope, priority</span>
+                          engineer filed: estimate (2d), risks
+<span class="o">▶</span> meter-cursor   ready     owes: <span class="o">verdict</span>
+                          engineer filed: tests-green, evidence
+
+<span class="d">2 decisions pending · nothing drastic flagged</span></pre></div>
+    <div class="term"><div class="bar"><i></i><i></i><i></i>desk inbox --as engineer</div><pre><span class="e">ENGINEER INBOX</span>  sprint 3 · 2 days left
+
+<span class="e">▶</span> board-export   scope     owes: <span class="e">estimate, risks</span>
+                          owner filed: scope, priority
+<span class="e">▶</span> kb-cadence     ready     owes: <span class="e">tests-green, evidence</span>
+
+<span class="d">2 threads runnable · 1 waiting on owner</span></pre></div>
+    <div class="term wide"><div class="bar"><i></i><i></i><i></i>desk status</div><pre><span class="d">office</span> my-office      <span class="d">sprint</span> 3 of 2026-09-15 → 09-22        <span class="d">milestone</span> first-release
+
+THREAD          GATE      OWNER              ENGINEER             SYNC
+auth-hook       scope     <span class="bad">— scope, priority</span>  estimate, risks      <span class="bad">owner owes</span>
+board-export    scope     scope, priority    <span class="bad">— estimate, risks</span>    <span class="bad">engineer owes</span>
+meter-cursor    ready     <span class="bad">— verdict</span>          tests-green, evidence <span class="bad">owner owes</span>
+kb-cadence      shipped   acceptance         read-back v0.1.3     <span class="ok">closed</span>
+
+DESK   HARNESS   TURNS   IN(cached)      OUT     WEEK      BUDGET
+dev    claude    412     18.2M (16.9M)   210k    22.1M     <span class="ok">61%</span> of 36M
+pm     claude    88      3.1M  (2.8M)    41k     3.4M      <span class="ok">34%</span> of 10M
+review codex     61      2.4M  (1.7M)    12k     2.6M      <span class="bad">104%</span> of 2.5M   <span class="d">← projection: 11.1M / month</span></pre></div>
+  </div>
+  <h3>The office itself is a tmux session</h3>
+  <div class="tmux">
+    <div class="pane"><div class="t">pm · claude --name pm</div>Reading board. auth-hook is waiting on the owner for scope. Drafting the scope note for review, not filing it.</div>
+    <div class="pane"><div class="t">dev · claude --name dev</div>board-export has scope and priority filed. Estimating: 1d, no money path. Filing engineer:estimate, engineer:risks.</div>
+    <div class="pane"><div class="t">review · codex</div>Reviewing meter-cursor diff against the evidence link in the board. Tests green locally, read-back matches.</div>
+    <div class="pane"><div class="t">you</div><span class="d">$</span> desk inbox --as owner</div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Stack</div>
+  <h2>Small on purpose</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Layer</th><th>Choice</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>Language</td><td>Python 3.11+, stdlib plus PyYAML</td><td>One <code>uvx</code> install, no compile step, no daemon to ship</td></tr>
+      <tr><td>Packaging</td><td>uv, pyproject, console script <code>desk</code></td><td>Reproducible, publishable later without changes</td></tr>
+      <tr><td>State</td><td>Two YAML files in the repo</td><td>Diffable in PRs, no database, no service to keep alive</td></tr>
+      <tr><td>Multiplexing</td><td>tmux</td><td>Already on every developer box that runs more than one session</td></tr>
+      <tr><td>Usage data</td><td>Harness transcript logs on disk</td><td>Claude Code and Codex both record per-turn tokens with the working directory; nothing to instrument</td></tr>
+      <tr><td>Intake</td><td>A printed prompt for the harness you are in</td><td>No API key, no second bot, no relay</td></tr>
+      <tr><td>Tests</td><td>pytest over a temp office and fixture log lines</td><td>Gate handshake and meter dedupe are the two things that must not drift</td></tr>
+      <tr><td>Deliberately absent</td><td>daemon · web UI · SaaS export · API keys</td><td>Each one is a reason not to install it</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <div class="two">
+    <div>
+      <div class="eyebrow">v0 ships</div>
+      <ul class="list">
+        <li>Manifest with two-sided gate contracts, validated</li>
+        <li>Board with deliver, advance, sync check, two inboxes</li>
+        <li>Meter over Claude Code and Codex logs, per desk, per sprint, monthly projection</li>
+        <li>tmux launcher with role prompts</li>
+        <li>Intake prompt printer</li>
+        <li>Status screen that combines all of the above</li>
+      </ul>
+    </div>
+    <div>
+      <div class="eyebrow">After v0</div>
+      <ul class="list later">
+        <li>Cursor log reader</li>
+        <li>Per-desk mailbox via turn-start hooks and Codex queue</li>
+        <li>Signed receipt as the shipped-gate engineer deliverable</li>
+        <li>Estimate command, enabled only once the meter has a week of history</li>
+        <li>Notion or markdown export of the board, as a view, never the source</li>
+      </ul>
+    </div>
+  </div>
+</section>
+</div>

@@ -1,0 +1,231 @@
+<html><head><meta charset="utf-8"><title>Coding Desks — PRD, Architecture, Stack</title>
+<style>
+body{font-family:"Liberation Sans";font-size:10.5pt;color:#1B2430;line-height:1.35}
+h1,h2,h3{font-family:"Liberation Sans"} h1{font-size:26pt;margin:0 0 6pt 0} h2{font-size:16pt;color:#1B2430;margin:18pt 0 6pt 0;border-bottom:1px solid #B9C2CC}
+h3{font-size:12pt;margin:12pt 0 4pt 0} p{margin:0 0 6pt 0}
+code,pre{font-family:"Liberation Mono";font-size:9pt} pre{background:#F3F5F7;padding:6pt;margin:4pt 0 8pt 0}
+.muted{color:#5A6675} .own{color:#B8741A} .eng{color:#1D6F8F} .small{font-size:9pt}
+td,th{font-size:9.5pt;vertical-align:top} th{background:#EEF1F4;text-align:left}
+.cap{font-size:9pt;color:#5A6675;margin:2pt 0 10pt 0}
+</style></head><body>
+
+<p class="muted small">CODING DESKS · SOURCE OF TRUTH · 2026-09-21 · v0.0.1 · status: build paused after the v0 skeleton</p>
+<h1>Coding Desks</h1>
+<p style="font-size:13pt">An office of coding-harness sessions you already pay for, run from the CLI. One person wears two hats. The tool keeps them apart and makes every handoff between them a file in the repo.</p>
+<p class="muted">This document is the single source of truth for the idea: the product requirements, the architecture with diagrams, the technical stack, what exists on disk today, and the decisions still open. It is kept local, next to the code, at <code>docs/</code>. It supersedes the chat it came from.</p>
+
+<h2>1. The idea in one page</h2>
+<p><b>Origin.</b> The owner had been running this by hand for weeks: seven named harness sessions across two projects, each with a role and an effort tier, and a runbook that assigns model and tier at handoff. The trigger was a prompt written for a hosted bot to build a Notion workspace with "two parties, product owner and engineer, both me, gated at deliverables, verifications and checks so the timeline stays in sync". Two lossy hops later the page landed in a workspace nobody else could see. The tool is that prompt, taken literally, with the board in the repo instead of a SaaS page.</p>
+<p><b>Thesis.</b> A solo developer is both product owner and engineer, and the failure mode is that the two blur. The office's value is keeping them apart so decisions surface as decisions. Concretely: two inboxes over one board. The <span class="own">owner</span> inbox holds only items that need a verdict. The <span class="eng">engineer</span> inbox holds only threads whose scope is confirmed. A desk that hits an unconfirmed scope writes to the owner inbox and stops, rather than guessing. That is the whole difference between an office and a swarm.</p>
+<p><b>What is new and what is not.</b> Role-based AI software teams exist and are large: MetaGPT and ChatDev sell the "virtual software company" with CEO, PM and programmer roles; CrewAI does the generic version; BMAD does roles as skills inside one session; Claude Code has agent teams and cross-session messaging. All of them run an agent loop on API keys, or live inside one harness. The unclaimed angle: the office is made of the developer's <i>existing harness sessions and existing subscriptions</i>, and the question it answers is "which mix of Claude, Codex and Cursor plans covers this office for a month". No framework answers that because none is built on subscriptions. That claim must be searched before it goes into a README; "nobody does this" is a claim that has been falsified before.</p>
+<p><b>Bringing engineering back to the CLI.</b> The plan is a file, progress is a query over the repo, both are diffable and receiptable. The cadence lives next to the code, and the PM desk reads git, open PRs and desk transcripts to compute progress instead of being told it.</p>
+
+<h2>2. Product requirements</h2>
+<h3>2.1 Problem</h3>
+<p>Developers running several AI coding sessions have no shared plan, no separation between deciding and executing, and no idea what the month will cost against the subscriptions they hold. Existing multi-agent frameworks replace the harness rather than organise it, and assume API keys.</p>
+<h3>2.2 Users and jobs</h3>
+<table border="1" cellpadding="5" cellspacing="0" width="100%">
+<tr><th width="22%">User</th><th>Job to be done</th></tr>
+<tr><td>Solo developer with 1–3 harness subscriptions</td><td>Set up a planned cadence with roles, keep my own product decisions separate from my engineering, and know whether my plan tier covers the month.</td></tr>
+<tr><td>Small team lead</td><td>Give each teammate's harness a role and a budget; see threads by gate; close sprints on evidence rather than status words.</td></tr>
+<tr><td>Anyone who must show a third party what an agent did</td><td>Have the engineer side of every gate be evidence, and later a signed receipt (after v0).</td></tr>
+</table>
+<h3>2.3 Principles (non-negotiable)</h3>
+<table border="1" cellpadding="5" cellspacing="0" width="100%">
+<tr><th width="28%">Principle</th><th>Meaning</th></tr>
+<tr><td>Files in the repo are the source</td><td><code>office.yaml</code> is the contract, <code>.office/board.yaml</code> is the state. Git-tracked, diffable in PRs. Any UI or export is a view, never the source.</td></tr>
+<tr><td>No daemon, no keys, no service</td><td>Everything is a pure function over files plus the logs the harness already writes. One <code>uvx</code> install. Close tmux and nothing is lost.</td></tr>
+<tr><td>Two hats, kept apart</td><td>Owner decides; engineer delivers evidence. Same person allowed. The tool never lets one hat act for the other.</td></tr>
+<tr><td>Gates are two-sided contracts</td><td>A gate passes only when both columns are filled. <code>engineer-first</code> locks a decision until evidence exists.</td></tr>
+<tr><td>Evidence, never status words</td><td>A read-back is a version string you observed. Tests-green is filed by whoever ran them.</td></tr>
+<tr><td>Meter first, estimate second</td><td>Subscription quotas are opaque and per-role usage varies by 10×. An estimate from priors is wrong by day three. Measure a week, then project.</td></tr>
+<tr><td>Useful with one desk on day one</td><td>Board, inboxes and meter work in a single Claude Code session before any multi-harness bus exists.</td></tr>
+<tr><td>Intake stays dumb</td><td>Parse, show the manifest, ask for confirmation, run. The confirmation step is the product; it is the moment the owner hat is forced to exist.</td></tr>
+</table>
+<h3>2.4 Functional requirements (v0)</h3>
+<table border="1" cellpadding="5" cellspacing="0" width="100%">
+<tr><th width="9%">ID</th><th>Requirement</th><th width="14%">Status 09-21</th></tr>
+<tr><td>FR1</td><td>Manifest with hats, desks, ordered gates with two columns and optional order, threads, milestones, cadence, per-desk token budget; validated with clear errors.</td><td>built, tested</td></tr>
+<tr><td>FR2</td><td>Board: reconcile threads from the manifest; file a deliverable with note/evidence/timestamp; refuse wrong items, double filings, and locked columns; advance when both columns are complete; close after the last gate.</td><td>built, tested</td></tr>
+<tr><td>FR3</td><td>Sync check: list open gates with an empty column, naming the hat that owes.</td><td>built, tested</td></tr>
+<tr><td>FR4</td><td>Two inboxes derived from the board: <code>--as owner</code> and <code>--as engineer</code>, plus "waiting on the other hat".</td><td>built, tested</td></tr>
+<tr><td>FR5</td><td>Meter: read Claude Code and Codex transcript logs, dedupe correctly, attribute sessions to desks, sum per sprint window, show % of budget and a 30-day projection. Tokens only, never money.</td><td>built, tested, smoke-run on real logs</td></tr>
+<tr><td>FR6</td><td>Launcher: one tmux window per desk with the role prompt, a plain "you" window, launch records for attribution; dry-run prints the plan.</td><td>built, dry-run only</td></tr>
+<tr><td>FR7</td><td>Intake: print a prompt carrying the schema and rules so the user's own harness writes the manifest. No API key.</td><td>built</td></tr>
+<tr><td>FR8</td><td>Status screen: sprint header, board, sync summary, meter table.</td><td>built</td></tr>
+<tr><td>FR9</td><td>Init: template manifest and three role prompts.</td><td>built</td></tr>
+</table>
+<h3>2.5 Non-goals for v0</h3>
+<p>A web UI. A daemon or message bus. API-key execution of agents. Cost in currency. An estimate before measured history exists. Notion or any SaaS as the source of truth. Competing on model quality.</p>
+<h3>2.6 Success signals</h3>
+<p>The owner uses it daily on a real project for one sprint without reverting to hand-run sessions. A second person installs it with one command and gets a useful <code>desk status</code> in a single Claude Code session. The meter's sprint projection is within 20% of the next sprint's measured total.</p>
+<h3>2.7 Risks</h3>
+<table border="1" cellpadding="5" cellspacing="0" width="100%">
+<tr><th width="34%">Risk</th><th>Mitigation</th></tr>
+<tr><td>Harness log formats change</td><td>Readers are small and isolated; each has fixture tests; a reader that fails is skipped, never fatal.</td></tr>
+<tr><td>Attribution is wrong when two desks share a harness and directory</td><td>Three ordered rules (name, launch record, unique claim); otherwise "(unassigned)" is shown, never guessed.</td></tr>
+<tr><td>Codex desks cannot receive messages</td><td>Read-only participants in v0; the mailbox is after v0 and Codex has a queue command.</td></tr>
+<tr><td>Scope creep into a framework</td><td>The principles table is the gate; every proposal is judged by adoption impact and by whether it needs a daemon or a key.</td></tr>
+<tr><td>"Nobody does this" in public copy</td><td>Search first; narrow the claim to the subscription-budget angle.</td></tr>
+</table>
+
+<p style="page-break-before:always"></p>
+<h2>3. Concepts</h2>
+<p><img src="diagrams/01-concept-model.svg" width="640" height="354"></p>
+<p class="cap">Figure 1. The concept model. Solid boxes are the manifest; board and meter are derived; the logs are external input.</p>
+<table border="1" cellpadding="5" cellspacing="0" width="100%">
+<tr><th width="16%">Term</th><th>Definition</th></tr>
+<tr><td>Office</td><td>One per repo. Named. Defined by <code>office.yaml</code>; its tmux session carries the same name.</td></tr>
+<tr><td>Hat</td><td>Exactly <code>owner</code> and <code>engineer</code>. A hat is a role a person is wearing, not a person.</td></tr>
+<tr><td>Desk</td><td>A harness session with a role prompt, a harness (claude, codex, custom), optional model and tier, a working directory, and a token budget per sprint.</td></tr>
+<tr><td>Gate</td><td>A named checkpoint with an owner column and an engineer column of deliverable items, and an optional <code>order</code>. Gates are ordered by their position in the manifest.</td></tr>
+<tr><td>Thread</td><td>A concrete piece of work owned by one desk that walks the gates in order (or its own subset), optionally targeting a milestone.</td></tr>
+<tr><td>Milestone</td><td>A named, optionally dated target that threads point at.</td></tr>
+<tr><td>Sprint</td><td>A budget window: <code>cadence.start</code> plus N × <code>sprint_days</code>. Subscription quotas are weekly, so one week is the natural cadence.</td></tr>
+<tr><td>Board</td><td>Per-thread state: current gate and every filed delivery with note, evidence and time.</td></tr>
+<tr><td>Meter</td><td>Reader over the harness transcript logs; attributes sessions to desks; sums the sprint window; projects 30 days.</td></tr>
+</table>
+
+<p style="page-break-before:always"></p>
+<h2>4. Architecture</h2>
+<h3>4.1 Layers</h3>
+<p><img src="diagrams/02-layers.svg" width="640" height="396"></p>
+<p class="cap">Figure 2. Files are the source; the engine is pure Python over them; the CLI is the only surface. Logs, tmux and the user's own harness are the only external touchpoints.</p>
+<h3>4.2 The gate handshake</h3>
+<p><img src="diagrams/03-gate-handshake.svg" width="640" height="337"></p>
+<p class="cap">Figure 3. The default three gates and the five rules the board enforces. Gates and items are user-defined; the rules are not.</p>
+
+<p style="page-break-before:always"></p>
+<h3>4.3 The meter</h3>
+<p><img src="diagrams/04-meter-flow.svg" width="640" height="362"></p>
+<p class="cap">Figure 4. Verified log shapes on 2026-09-21. Claude Code repeats one response's usage across several lines sharing a requestId; Codex records per-response usage and a cumulative per-turn figure that must be ignored.</p>
+<h3>4.4 The journey</h3>
+<p><img src="diagrams/05-journey.svg" width="640" height="396"></p>
+<p class="cap">Figure 5. Seven steps from a paragraph to a running office; steps 5 and 6 repeat daily.</p>
+
+<p style="page-break-before:always"></p>
+<h3>4.5 Office topology at runtime</h3>
+<p><img src="diagrams/06-office-topology.svg" width="640" height="337"></p>
+<p class="cap">Figure 6. A tmux session plus files. Verified harness facts: Claude Code accepts <code>--name</code> and <code>--append-system-prompt-file</code> and writes the name into the transcript as a custom-title record; Codex has no system-prompt flag and a <code>queue</code> command.</p>
+<h3>4.6 CLI surface</h3>
+<table border="1" cellpadding="5" cellspacing="0" width="100%">
+<tr><th width="30%">Command</th><th>Does</th><th width="22%">Reads / writes</th></tr>
+<tr><td><code>desk init [--force]</code></td><td>Write the template manifest and pm/dev/review role prompts.</td><td>writes office.yaml, .office/roles</td></tr>
+<tr><td><code>desk intake [text|-f file]</code></td><td>Print the prompt that turns a description into the manifest, for the harness you are in.</td><td>stdout only</td></tr>
+<tr><td><code>desk check</code></td><td>Validate the manifest, print warnings, reconcile the board.</td><td>writes board</td></tr>
+<tr><td><code>desk board</code></td><td>Threads × gates with both columns and sync status.</td><td>reads</td></tr>
+<tr><td><code>desk inbox --as owner|engineer</code></td><td>What this hat owes now; what is waiting on the other hat.</td><td>reads</td></tr>
+<tr><td><code>desk deliver T HAT ITEM [--note] [--evidence]</code></td><td>File one deliverable; advance when both columns complete.</td><td>writes board</td></tr>
+<tr><td><code>desk status</code></td><td>Sprint header, board, sync summary, usage table.</td><td>reads board + logs</td></tr>
+<tr><td><code>desk meter [--days N]</code></td><td>Usage per desk for the sprint window or the last N days.</td><td>reads logs + launches</td></tr>
+<tr><td><code>desk up [--dry-run] [--no-attach]</code></td><td>Open the office in tmux; record launches for attribution.</td><td>writes launches</td></tr>
+</table>
+<h3>4.7 Screens as built</h3>
+<pre>$ desk inbox --as owner
+OWNER INBOX  sprint 0 · 2026-09-22 → 2026-09-29
+
+▶ example-thread  scope     owes: scope, priority
+                            engineer filed: estimate, risks
+
+1 owed by owner · 0 waiting on engineer
+
+$ desk deliver example-thread owner verdict
+error: gate ready is engineer-first: owner may not file until engineer files ['tests-green', 'evidence']
+
+$ desk board
+office smoke-office    sprint 0 · 2026-09-22 → 2026-09-29    milestones first-release
+
+THREAD          DESK  GATE   OWNER      ENGINEER                 SYNC
+example-thread  dev   ready  — verdict  — tests-green, evidence  engineer owes</pre>
+
+<p style="page-break-before:always"></p>
+<h2>5. Technical stack</h2>
+<table border="1" cellpadding="5" cellspacing="0" width="100%">
+<tr><th width="18%">Layer</th><th width="30%">Choice</th><th>Why</th></tr>
+<tr><td>Language</td><td>Python ≥ 3.11, stdlib + PyYAML</td><td>One <code>uvx</code> install, no compile step, no daemon to ship.</td></tr>
+<tr><td>Packaging</td><td>uv, hatchling, console script <code>desk</code></td><td>Reproducible; publishable later without change. Package name <code>coding-desks</code>, module <code>coding_desks</code>.</td></tr>
+<tr><td>State</td><td>Two YAML files in the repo</td><td>Diffable in PRs, no database, nothing to keep alive.</td></tr>
+<tr><td>Multiplexing</td><td>tmux (3.4 verified here)</td><td>Already on every box that runs more than one session.</td></tr>
+<tr><td>Usage data</td><td>Harness transcript logs on disk</td><td>Claude Code and Codex record per-turn tokens with the working directory; nothing to instrument.</td></tr>
+<tr><td>Intake</td><td>A printed prompt for the harness you are in</td><td>No API key, no second bot, no relay.</td></tr>
+<tr><td>Tests</td><td>pytest over a temp office and fixture log lines (25 tests)</td><td>The handshake and the meter dedupe are the two things that must not drift.</td></tr>
+<tr><td>Output</td><td>Plain text tables, ANSI colour when a TTY, <code>NO_COLOR</code> honoured</td><td>Readable inside tmux panes and in logs.</td></tr>
+<tr><td>Deliberately absent</td><td>daemon · web UI · SaaS export · API keys · currency</td><td>Each one is a reason not to install it.</td></tr>
+</table>
+<h3>5.1 Module map</h3>
+<table border="1" cellpadding="5" cellspacing="0" width="100%">
+<tr><th width="30%">File</th><th width="8%">Lines</th><th>Responsibility</th></tr>
+<tr><td><code>src/coding_desks/manifest.py</code></td><td>266</td><td>Dataclasses for Office/Desk/Gate/Thread/Milestone/Cadence; <code>parse</code>, <code>load</code>, <code>warnings</code>, <code>find_root</code>, sprint window.</td></tr>
+<tr><td><code>src/coding_desks/board.py</code></td><td>202</td><td><code>Board</code>: load/save YAML, reconcile, <code>deliver</code>, <code>row</code>/<code>rows</code>, <code>inbox</code>, <code>waiting_on_other</code>; <code>SyncRow</code> with <code>owes</code> and <code>status</code>.</td></tr>
+<tr><td><code>src/coding_desks/meter.py</code></td><td>~315</td><td>Readers <code>read_claude</code>, <code>read_codex</code>; launches; <code>attribute</code>; <code>summarize</code>; <code>window</code>; <code>projection</code>.</td></tr>
+<tr><td><code>src/coding_desks/launcher.py</code></td><td>65</td><td><code>desk_command</code> per harness, <code>tmux_plan</code> (pure), <code>up</code>.</td></tr>
+<tr><td><code>src/coding_desks/intake.py</code></td><td>38</td><td><code>build_prompt</code> from the template plus rules.</td></tr>
+<tr><td><code>src/coding_desks/cli.py</code></td><td>308</td><td>argparse surface, table rendering, the nine commands.</td></tr>
+<tr><td><code>src/coding_desks/templates/</code></td><td>—</td><td><code>office.yaml</code> and <code>roles/{pm,dev,review}.md</code>.</td></tr>
+<tr><td><code>tests/</code></td><td>—</td><td><code>test_manifest.py</code>, <code>test_board.py</code>, <code>test_meter.py</code>, shared fixtures in <code>conftest.py</code>.</td></tr>
+</table>
+
+<h2>6. What exists on disk, 2026-09-21</h2>
+<table border="1" cellpadding="5" cellspacing="0" width="100%">
+<tr><th width="30%">Item</th><th>Evidence</th></tr>
+<tr><td>Repository</td><td><code>~/coding-desks</code>, local git only, one commit <code>4594afe</code> by azank. No remote. Not created on GitHub; that is the owner's call.</td></tr>
+<tr><td>Tests</td><td>25 passed in 0.08 s, run with another project's interpreter because <code>uv sync --offline</code> could not resolve PyYAML from the cache and pytest's pygments wheel was missing offline.</td></tr>
+<tr><td>Smoke run</td><td>In a temp office: init → check → four deliveries → gate passed to <code>ready</code> → a verdict correctly refused as engineer-first → board rendered → <code>up --dry-run</code> printed a correct tmux plan → intake printed the prompt.</td></tr>
+<tr><td>Meter on real logs</td><td>83 sessions read (36 Claude Code, 47 Codex) in 5.9 s; 25 Claude sessions carried a name; a 30-day sum attributed to a two-desk office over a real repo without writing any file into it.</td></tr>
+<tr><td>Design page</td><td><code>docs/design-page.html</code>, a one-page visual summary of the same architecture.</td></tr>
+</table>
+<h3>6.1 Known defects, not fixed (build is paused)</h3>
+<table border="1" cellpadding="5" cellspacing="0" width="100%">
+<tr><th width="30%">Defect</th><th>Detail</th></tr>
+<tr><td><code>desk deliver</code> "waiting on" line</td><td>When both hats owe, the owner and engineer item lists are joined without a separator ("scope, priorityrisks"). Cosmetic; the board is correct.</td></tr>
+<tr><td>Codex role quoting</td><td>The whole role text is passed as a shell-quoted first prompt; it works but the dry-run output is unreadable. Better: write the role to a temp file and pass a short pointer prompt.</td></tr>
+<tr><td>Offline install</td><td><code>uv sync --offline</code> fails on this machine; the project needs a lock file committed and a documented offline path, or simply a network install when allowed.</td></tr>
+<tr><td>Cursor reader</td><td>Not written; <code>~/.cursor/ai-tracking/ai-code-tracking.db</code> is SQLite and unexplored.</td></tr>
+<tr><td>Codex system prompt</td><td>No flag exists; whether <code>AGENTS.md</code> in the desk's cwd is a better carrier for the role is untested.</td></tr>
+</table>
+
+<p style="page-break-before:always"></p>
+<h2>7. Roadmap</h2>
+<table border="1" cellpadding="5" cellspacing="0" width="100%">
+<tr><th width="16%">Stage</th><th>Scope</th></tr>
+<tr><td>v0 (remaining)</td><td>Fix the three cosmetic defects; run <code>desk up</code> for real once; commit a lock file; README; dogfood one sprint on a real project.</td></tr>
+<tr><td>v0.1</td><td>Cursor reader. <code>desk estimate</code>, which refuses to print a number until the meter has seven days of history, then states which plan tier each desk needs at the measured cadence.</td></tr>
+<tr><td>v0.2</td><td>Per-desk mailbox: a directory inbox read by a turn-start hook in Claude Code and Cursor; Codex via its queue command. This is what lets a PM desk hand a thread to a dev desk in another harness.</td></tr>
+<tr><td>v0.3</td><td>Receipts: the engineer's deliverable at the shipped gate becomes a signed record, so what the owner accepted is verifiably what was done. Designed to accept a receipt produced by an external hook; this tool never signs anything itself.</td></tr>
+<tr><td>Views</td><td>Markdown or Notion export of the board as a view, never the source.</td></tr>
+</table>
+<h3>7.1 Decisions open for the owner</h3>
+<table border="1" cellpadding="5" cellspacing="0" width="100%">
+<tr><th width="30%">Decision</th><th>Options and the recommendation</th></tr>
+<tr><td>Where the repo lives</td><td>Stay local; or a private GitHub repo under the org; or public from the start. Recommendation: private remote soon so the work is never laptop-only; public only after one dogfooded sprint and a competitor search.</td></tr>
+<tr><td>Name</td><td><code>coding-desks</code> with command <code>desk</code>. PyPI availability not checked (no network by rule).</td></tr>
+<tr><td>License</td><td>MIT is in the tree. Confirm.</td></tr>
+<tr><td>First dogfood target</td><td>The owner's own current project, with three desks mapped to the sessions already running by hand.</td></tr>
+</table>
+
+<h2>Appendix A. The manifest template</h2>
+<pre>name: my-office
+hats: [owner, engineer]
+cadence: { sprint_days: 7, start: 2026-09-22, review: friday }
+gates:
+  scope:   { owner: [scope, priority], engineer: [estimate, risks] }
+  ready:   { owner: [verdict],         engineer: [tests-green, evidence], order: engineer-first }
+  shipped: { owner: [acceptance],      engineer: [read-back, receipt],    order: engineer-first }
+desks:
+  pm:     { role: .office/roles/pm.md,     harness: claude, model: opus, tier: high,  budget: 10_000_000 }
+  dev:    { role: .office/roles/dev.md,    harness: claude, model: opus, tier: xhigh, budget: 36_000_000 }
+  review: { role: .office/roles/review.md, harness: codex,  budget: 5_000_000 }
+milestones:
+  - { name: first-release, due: 2026-10-15 }
+threads:
+  - { name: example-thread, desk: dev, milestone: first-release }</pre>
+<h2>Appendix B. Verified harness facts (this machine, 2026-09-21)</h2>
+<table border="1" cellpadding="5" cellspacing="0" width="100%">
+<tr><th width="22%">Harness</th><th>Fact</th></tr>
+<tr><td>Claude Code</td><td>Flags <code>--name</code>, <code>--append-system-prompt</code>, <code>--append-system-prompt-file</code>. Transcript at <code>~/.claude/projects/&lt;slug&gt;/&lt;session&gt;.jsonl</code>; assistant lines carry <code>cwd</code>, <code>timestamp</code>, <code>sessionId</code>, <code>requestId</code>, <code>message.model</code>, <code>message.usage</code> (input, cache_creation_input, cache_read_input, output). One response spans several lines with the same requestId and identical usage: 8 934 assistant lines were 3 873 unique requests in one file. A <code>custom-title</code> record carries the session name.</td></tr>
+<tr><td>Codex</td><td>Sessions at <code>~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl</code>; <code>session_meta.payload.cwd</code>; <code>token_usage_record.payload.usage</code> is per response (input, cached_input, cache_write_input, output, reasoning_output), <code>turn_token_usage</code> is cumulative within a turn. Has <code>queue</code>, <code>exec</code>, <code>resume</code>; no system-prompt flag. Project hooks did not run in a 09-21 spike.</td></tr>
+<tr><td>Cursor</td><td><code>~/.cursor/ai-tracking/ai-code-tracking.db</code> (SQLite), <code>~/.cursor/hooks.json</code>. Unexplored.</td></tr>
+<tr><td>tmux</td><td>3.4.</td></tr>
+</table>
+<p class="muted small">End of document.</p>
+</body></html>

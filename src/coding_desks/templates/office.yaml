@@ -1,0 +1,56 @@
+# office.yaml — the contract for this office. Edit it like code.
+name: my-office
+
+# The two hats. Both may be the same person; the tool keeps them apart.
+hats: [owner, engineer]
+
+cadence:
+  sprint_days: 7
+  start: 2026-09-22        # first sprint start (ISO date)
+  review: friday
+
+# Gates are two-sided contracts. A thread passes a gate only when both
+# columns are filled. `order: engineer-first` means the owner may not file
+# until the engineer's column is complete (a verdict on no evidence is refused).
+gates:
+  scope:
+    owner: [scope, priority]
+    engineer: [estimate, risks]
+  ready:
+    owner: [verdict]
+    engineer: [tests-green, evidence]
+    order: engineer-first
+  shipped:
+    owner: [acceptance]
+    engineer: [read-back, receipt]
+    order: engineer-first
+
+# Desks. `harness` is claude | codex | custom. `cwd` is relative to this file.
+# `budget` is tokens per sprint (input + output, cached included) and is optional.
+desks:
+  pm:
+    role: .office/roles/pm.md
+    harness: claude
+    model: opus
+    tier: high
+    budget: 10_000_000
+  dev:
+    role: .office/roles/dev.md
+    harness: claude
+    model: opus
+    tier: xhigh
+    budget: 36_000_000
+  review:
+    role: .office/roles/review.md
+    harness: codex
+    budget: 5_000_000
+
+milestones:
+  - name: first-release
+    due: 2026-10-15
+
+# Threads of work. Each is owned by one desk and walks the gates in order.
+threads:
+  - name: example-thread
+    desk: dev
+    milestone: first-release
