@@ -19,6 +19,7 @@
   <a href="#quick-start">Quick start</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#the-manifest">Manifest</a> ·
+  <a href="#gate-checks">Gate checks</a> ·
   <a href="#the-meter">Meter</a> ·
   <a href="#commands">Commands</a> ·
   <a href="#design">Design</a> ·
@@ -39,6 +40,16 @@ refuses the owner's verdict until the engineer's evidence is on file.
 
 That is the whole trick. The timeline cannot drift, because nobody can sign
 off on nothing.
+
+<p align="center">
+  <img src="docs/demo/signed-handoffs.svg" width="880"
+       alt="A terminal replay: a planner desk and a builder desk hand one thread across two gates. A receipt with no evidence, an edited receipt, a receipt signed by an untrusted key and a replayed receipt are all refused; the real receipts are accepted, the office runs the tests itself, and desk verify re-checks every link and catches one changed byte.">
+</p>
+<p align="center"><sub>
+  Two desks, one thread, every hand-off gated on a signed receipt.
+  Replayed from a real run of <a href="examples/signed-handoffs/demo.sh"><code>examples/signed-handoffs/demo.sh</code></a>.
+  Run it yourself, it takes about three seconds.
+</sub></p>
 
 <br>
 
@@ -159,10 +170,82 @@ threads:
 | `gates` | Ordered. Each has an `owner` column and an `engineer` column. `order: engineer-first` blocks the owner until the engineer's column is complete. |
 | `desks` | One per role. `harness` is `claude`, `codex`, `cursor` or `custom` (with a `command`). `budget` is tokens per sprint. `cwd` defaults to the repo root. |
 | `threads` | Work items. One desk each, optional milestone, optional `gates:` subset. |
+| `gates.<gate>.checks` | Optional. `item: command`. The item is accepted only if the command exits 0. See [Gate checks](#gate-checks). |
 
 State lives in `.office/board.yaml` (which gate each thread is at, what was
 filed, when, with what evidence) and `.office/launches.yaml` (when each
 desk was started, for meter attribution). Commit both or ignore both.
+
+## Gate checks
+
+A gate item can carry a check: a shell command that has to exit 0 before the
+item is accepted. This is how a hand-off between sessions becomes something
+you can prove after the fact, and not a line someone typed.
+
+```yaml
+gates:
+  shipped:
+    engineer: [tests-green, receipt]
+    owner:    [accept]
+    order: engineer-first
+    checks:
+      tests-green: "python -m pytest -q"
+      receipt:     "your-verifier {evidence}"
+```
+
+```console
+$ desk deliver slug engineer receipt
+error: planned:receipt has a check; pass --evidence
+
+$ desk deliver slug engineer receipt --evidence receipts/edited.json
+error: check refused engineer:receipt on slug (exit 1): ./verify-receipt {evidence} planner@office
+INVALID receipts/edited.json: signature does not match its bytes
+
+$ desk deliver slug engineer receipt --evidence receipts/builder-4f9a.json
+error: check refused engineer:receipt on slug (exit 1): ./verify-receipt {evidence} planner@office
+REFUSED receipts/builder-4f9a.json: signed by builder@office, this gate takes planner@office
+
+$ desk deliver slug engineer receipt --evidence receipts/planner-014a.json
+check passed  ./verify-receipt {evidence} planner@office  sha256:0f0553bc7839…
+filed engineer:receipt on slug at gate planned
+```
+
+**Try it:** `uv run examples/signed-handoffs/demo.sh`. It needs no model and
+no network, only `ssh-keygen`. Two desks share one thread. Each session's
+receipt is signed with that desk's SSH key, the office trusts exactly the
+keys in `.office/allowed_signers`, and each gate names the desk whose
+signature it takes. The sessions in the example are
+scripted stand-ins so it runs anywhere. With a real harness, the receipt
+comes from a hook that fires when the session ends, and the gate works the
+same way. The demo checks its own outcomes and exits 1 if any hand-off comes
+out differently, and CI runs it.
+
+- **The command is yours.** `desk` names no verifier and signs nothing. A test
+  suite, a linter, `gh pr checks`, or a verifier for signed session receipts
+  all fit. `{evidence}`, `{thread}`, `{gate}` and `{item}` are substituted
+  shell-quoted, and the same values are exported as `DESK_EVIDENCE`,
+  `DESK_THREAD`, `DESK_GATE` and `DESK_ITEM`. It runs from the office root,
+  with a 300 s limit.
+- **A refusal writes nothing.** The board only moves when the check passes.
+- **Evidence files are pinned.** When the evidence is a file, its sha256 goes
+  on the board next to the command it passed.
+- **One file backs one link.** The same file, byte for byte, is refused if
+  it is already accepted anywhere on the board. That stops a replay only if
+  your verifier also rejects the same receipt re-encoded. A check over the
+  exact signed bytes (like `ssh-keygen -Y verify`) does that already. A
+  verifier that parses and re-serializes should also refuse bytes it would
+  not have written itself, or a receipt ID it has seen before.
+- **`desk verify` re-checks every accepted link.** It re-runs each check
+  **as `office.yaml` states it now**. It flags a link whose check changed or
+  was removed since acceptance, and never runs a command that only the board
+  names. It fails if an accepted evidence file changed or disappeared, and
+  exits 1 if any link broke, so it can run in CI or in someone else's clone.
+
+A check proves what its command proves, and no more. A signature check proves
+who sealed the evidence and that it has not changed since. It does not prove
+the work was right. `office.yaml` runs these commands the way a Makefile runs
+its targets: review changes to it the same way. `desk verify` trusts the
+digests in `.office/board.yaml`, so review changes to that file too.
 
 ## The meter
 
@@ -207,7 +290,8 @@ estimated in their place.
 | `desk status` | Sprint header, every thread's gate, who owes what. |
 | `desk board` | The full table. |
 | `desk inbox --as owner\|engineer` | What one hat owes right now, and what it is waiting on. |
-| `desk deliver <thread> <hat> <item> [--note] [--evidence]` | File one deliverable at the thread's current gate. Refused if the item is wrong, already filed, or blocked by `engineer-first`. |
+| `desk deliver <thread> <hat> <item> [--note] [--evidence]` | File one deliverable at the thread's current gate. Refused if the item is wrong, already filed, blocked by `engineer-first`, or if its gate check fails. |
+| `desk verify [thread]` | Re-run every accepted gate check, and flag evidence that changed after it was accepted. Exits 1 if any link broke. |
 | `desk meter [--days N]` | Tokens per desk for the current sprint, or the last N days, against budget, with a 30-day projection. |
 
 Cursor is different. `cursor-agent` writes its sessions to

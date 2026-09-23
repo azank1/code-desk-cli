@@ -18,7 +18,7 @@ from .manifest import HATS, OFFICE_FILE, STATE_DIR, ManifestError, Office, load,
 
 # -- output helpers --------------------------------------------------------------
 
-_COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+_COLOR = (sys.stdout.isatty() or bool(os.environ.get("FORCE_COLOR"))) and not os.environ.get("NO_COLOR")
 
 
 def _c(code: str, s: str) -> str:
@@ -235,12 +235,17 @@ def cmd_inbox(a) -> None:
 def cmd_deliver(a) -> None:
     office = _office()
     board = Board.load(office)
+    gate = board.threads[a.thread].gate if a.thread in board.threads else None
     try:
         row, advanced = board.deliver(a.thread, a.hat, a.item, note=a.note, evidence=a.evidence)
     except BoardError as e:
         die(str(e))
     board.save()
     paint = owner if a.hat == "owner" else eng
+    filed = board.threads[a.thread].filed(gate, a.hat).get(a.item) if gate else None
+    if filed and filed.check:
+        short = f"  {filed.digest[:19]}…" if filed.digest else ""  # sha256: + 12 hex; the board keeps it whole
+        print(ok("check passed") + dim(f"  {filed.check}{short}"))
     print(
         f"filed {paint(a.hat + ':' + a.item)} on {a.thread} at gate {row.gate if not advanced else dim('(previous)')}"
     )
@@ -255,6 +260,38 @@ def cmd_deliver(a) -> None:
                 if items
             )
         )
+
+
+def cmd_verify(a) -> None:
+    office = _office()
+    board = Board.load(office)
+    try:
+        results = board.recheck(a.thread)
+    except BoardError as e:
+        die(str(e))
+    if not results:
+        print(dim("no checked deliverables on the board yet"))
+        return
+    rows = [
+        [
+            r.thread,
+            r.gate,
+            f"{r.hat}:{r.item}",
+            r.evidence,
+            ok("holds") if r.ok else bad(r.problem or "fails"),
+        ]
+        for r in results
+    ]
+    print(table(["thread", "gate", "item", "evidence", "link"], rows))
+    broken = [r for r in results if not r.ok]
+    for r in broken:
+        if r.output:
+            print(dim(f"-- {r.thread} {r.gate}:{r.item}"))
+            print(r.output)
+    held = len(results) - len(broken)
+    print(f"{held}/{len(results)} links hold" + ("" if not broken else " — " + bad(f"{len(broken)} broken")))
+    if broken:
+        sys.exit(1)
 
 
 def cmd_status(a) -> None:
@@ -331,6 +368,10 @@ def main(argv: list[str] | None = None) -> None:
     s = sp.add_parser("meter", help="harness usage per desk from the transcript logs")
     s.add_argument("--days", type=int, help="ignore the sprint window and use the last N days")
     s.set_defaults(fn=cmd_meter)
+
+    s = sp.add_parser("verify", help="re-run every accepted gate check; exit 1 if any link broke")
+    s.add_argument("thread", nargs="?", help="one thread (default: all)")
+    s.set_defaults(fn=cmd_verify)
 
     s = sp.add_parser("up", help="open the office: one tmux window per desk")
     s.add_argument("--dry-run", action="store_true", help="print the tmux commands only")

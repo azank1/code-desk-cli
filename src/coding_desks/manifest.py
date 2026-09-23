@@ -25,6 +25,7 @@ class Gate:
     owner: list[str]
     engineer: list[str]
     order: str | None = None  # None | "engineer-first" | "owner-first"
+    checks: dict[str, str] = field(default_factory=dict)  # item -> command; exit 0 accepts
 
     def items(self, hat: str) -> list[str]:
         return self.owner if hat == "owner" else self.engineer
@@ -183,7 +184,15 @@ def parse(data: dict, root: Path) -> Office:
         order = g.get("order")
         if order not in (None, "engineer-first", "owner-first"):
             raise ManifestError(f"gates.{gname}.order: must be engineer-first or owner-first")
-        office.gates[gname] = Gate(gname, owner, eng, order)
+        checks = g.get("checks") or {}
+        if not isinstance(checks, dict):
+            raise ManifestError(f"gates.{gname}.checks: expected a mapping of item -> command")
+        for item, cmd in checks.items():
+            if item not in owner and item not in eng:
+                raise ManifestError(f"gates.{gname}.checks.{item}: not an item of this gate")
+            if not isinstance(cmd, str) or not cmd.strip():
+                raise ManifestError(f"gates.{gname}.checks.{item}: expected a command string")
+        office.gates[gname] = Gate(gname, owner, eng, order, {str(k): v.strip() for k, v in checks.items()})
 
     desks = data.get("desks") or {}
     if not isinstance(desks, dict) or not desks:
