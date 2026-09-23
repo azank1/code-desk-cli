@@ -78,6 +78,10 @@ say "a key the office does not trust signs a receipt of its own"
 RS=$(seal stranger PLAN.md)
 refuse desk deliver slug engineer receipt --evidence "$RS"
 
+say "a desk the office trusts, but the wrong one for this gate"
+RB=$(seal builder PLAN.md)
+refuse desk deliver slug engineer receipt --evidence "$RB"
+
 say "the planner's real receipt"
 accept desk deliver slug engineer receipt --evidence "$R1"
 accept desk deliver slug owner go --note "plan reads right"
@@ -132,7 +136,7 @@ accept desk verify
 
 echo
 if [ "$UNEXPECTED" -eq 0 ]; then
-  printf '%severy hand-off came out as expected: 4 links accepted, 4 bad hand-offs refused, 1 tampered link caught%s\n' "$G" "$X"
+  printf '%severy hand-off came out as expected: 4 links accepted, 5 bad hand-offs refused, 1 tampered link caught%s\n' "$G" "$X"
 else
   printf '%ssomething came out differently than this demo expects%s\n' "$R" "$X"
 fi

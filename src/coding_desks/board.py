@@ -232,7 +232,7 @@ class Board:
         return None
 
     def recheck(self, thread: str | None = None) -> list[Recheck]:
-        """Re-run every accepted check, and flag evidence files that changed since acceptance."""
+        """Re-run every accepted check from office.yaml, and flag evidence that changed since acceptance."""
         names = [thread] if thread else list(self.office.threads)
         out = []
         for name in names:
@@ -250,8 +250,17 @@ class Board:
                                 problem = "evidence file is gone"
                             elif now != d.digest:
                                 problem = "evidence changed since it was accepted"
+                        # The contract is office.yaml; the board is state. Never run a command
+                        # that only the board names: flag the difference instead.
+                        g = self.office.gates.get(gate)
+                        current = g.checks.get(item) if g else None
+                        if problem is None and current is None:
+                            problem = "office.yaml no longer checks this item"
+                        elif problem is None and current != d.check:
+                            problem = "check changed since it was accepted"
+                            output = f"accepted with: {d.check}\noffice.yaml now: {current}"
                         if problem is None:
-                            res = checks.run(self.office.root, d.check, evidence=ev, thread=name, gate=gate, item=item)
+                            res = checks.run(self.office.root, current, evidence=ev, thread=name, gate=gate, item=item)
                             output = res.output
                             if not res.ok:
                                 problem = f"check now fails (exit {res.returncode})"

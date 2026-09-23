@@ -120,14 +120,32 @@ def test_recheck_holds_then_catches_a_flipped_byte(checked):
 
 
 def test_recheck_catches_a_check_that_now_fails(checked):
-    checked.gates["shipped"].checks["receipt"] = "true"
+    checked.gates["shipped"].checks["receipt"] = "test -f marker"
+    (checked.root / "marker").write_text("")
     b = Board.load(checked)
     b.deliver("a", "engineer", "receipt", evidence="v1.2.3")  # not a file: no digest to compare
-    d = b.threads["a"].filed("shipped", "engineer")["receipt"]
-    assert d.digest is None
-    d.check = "false"
+    assert b.threads["a"].filed("shipped", "engineer")["receipt"].digest is None
+    (checked.root / "marker").unlink()
     [r] = b.recheck()
     assert r.problem == "check now fails (exit 1)"
+
+
+def test_recheck_never_runs_a_command_only_the_board_names(checked):
+    b = Board.load(checked)
+    ev = _receipt(checked)
+    b.deliver("a", "engineer", "receipt", evidence=ev)
+    b.threads["a"].filed("shipped", "engineer")["receipt"].check = "touch pwned"  # someone edits board.yaml
+    [r] = b.recheck()
+    assert r.problem == "check changed since it was accepted" and "touch pwned" in r.output
+    assert not (checked.root / "pwned").exists()
+
+
+def test_recheck_flags_a_check_removed_from_office_yaml(checked):
+    b = Board.load(checked)
+    b.deliver("a", "engineer", "receipt", evidence=_receipt(checked))
+    del checked.gates["shipped"].checks["receipt"]
+    [r] = b.recheck()
+    assert r.problem == "office.yaml no longer checks this item"
 
 
 @pytest.fixture

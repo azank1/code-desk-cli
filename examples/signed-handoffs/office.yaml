@@ -9,14 +9,14 @@ gates:
     order: engineer-first
     checks:
       plan: "test -s {evidence}"
-      receipt: "./verify-receipt {evidence}"
+      receipt: "./verify-receipt {evidence} planner@office"   # this gate takes the planner's receipt
   shipped:
     engineer: [tests-green, receipt]
     owner: [accept]
     order: engineer-first
     checks:
       tests-green: "python3 -m unittest -q"
-      receipt: "./verify-receipt {evidence}"
+      receipt: "./verify-receipt {evidence} builder@office"   # and this one the builder's
 
 desks:
   planner: { role: .office/roles/planner.md, harness: claude }

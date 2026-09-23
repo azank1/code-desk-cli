@@ -198,18 +198,23 @@ $ desk deliver slug engineer receipt
 error: planned:receipt has a check; pass --evidence
 
 $ desk deliver slug engineer receipt --evidence receipts/edited.json
-error: check refused engineer:receipt on slug (exit 1): ./verify-receipt {evidence}
+error: check refused engineer:receipt on slug (exit 1): ./verify-receipt {evidence} planner@office
 INVALID receipts/edited.json: signature does not match its bytes
 
-$ desk deliver slug engineer receipt --evidence receipts/planner-9936.json
-check passed  ./verify-receipt {evidence}  sha256:146dd9e23886…
+$ desk deliver slug engineer receipt --evidence receipts/builder-4f9a.json
+error: check refused engineer:receipt on slug (exit 1): ./verify-receipt {evidence} planner@office
+REFUSED receipts/builder-4f9a.json: signed by builder@office, this gate takes planner@office
+
+$ desk deliver slug engineer receipt --evidence receipts/planner-014a.json
+check passed  ./verify-receipt {evidence} planner@office  sha256:0f0553bc7839…
 filed engineer:receipt on slug at gate planned
 ```
 
 **Try it:** `uv run examples/signed-handoffs/demo.sh`. It needs no model and
 no network, only `ssh-keygen`. Two desks share one thread. Each session's
-receipt is signed with that desk's SSH key, and the office trusts exactly
-the keys in `.office/allowed_signers`. The sessions in the example are
+receipt is signed with that desk's SSH key, the office trusts exactly the
+keys in `.office/allowed_signers`, and each gate names the desk whose
+signature it takes. The sessions in the example are
 scripted stand-ins so it runs anywhere. With a real harness, the receipt
 comes from a hook that fires when the session ends, and the gate works the
 same way. The demo checks its own outcomes and exits 1 if any hand-off comes
@@ -224,17 +229,23 @@ out differently, and CI runs it.
 - **A refusal writes nothing.** The board only moves when the check passes.
 - **Evidence files are pinned.** When the evidence is a file, its sha256 goes
   on the board next to the command it passed.
-- **One file backs one link.** A file already accepted anywhere on the board
-  is refused a second time. An old receipt cannot be replayed on a new
-  hand-off.
-- **`desk verify` re-checks every accepted link.** It re-runs each check, and
-  fails if an accepted evidence file changed or disappeared. It exits 1 if
-  any link broke, so it can run in CI or in someone else's clone.
+- **One file backs one link.** The same file, byte for byte, is refused if
+  it is already accepted anywhere on the board. That stops a replay only if
+  your verifier also rejects the same receipt re-encoded. A check over the
+  exact signed bytes (like `ssh-keygen -Y verify`) does that already. A
+  verifier that parses and re-serializes should also refuse bytes it would
+  not have written itself, or a receipt ID it has seen before.
+- **`desk verify` re-checks every accepted link.** It re-runs each check
+  **as `office.yaml` states it now**. It flags a link whose check changed or
+  was removed since acceptance, and never runs a command that only the board
+  names. It fails if an accepted evidence file changed or disappeared, and
+  exits 1 if any link broke, so it can run in CI or in someone else's clone.
 
 A check proves what its command proves, and no more. A signature check proves
 who sealed the evidence and that it has not changed since. It does not prove
 the work was right. `office.yaml` runs these commands the way a Makefile runs
-its targets: review changes to it the same way.
+its targets: review changes to it the same way. `desk verify` trusts the
+digests in `.office/board.yaml`, so review changes to that file too.
 
 ## The meter
 

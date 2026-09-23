@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# Gate check: the receipt must carry a valid SSH signature from a key this office trusts.
+# Gate check: the receipt must carry a valid SSH signature from the desk named for this gate.
 # Trust lives in .office/allowed_signers (one line per desk key), committed with the office.
+#   verify-receipt <receipt.json> <principal>     e.g. ./verify-receipt r.json planner@office
 set -uo pipefail
-receipt=${1:?usage: verify-receipt <receipt.json>}
+receipt=${1:?usage: verify-receipt <receipt.json> <principal>}
+want=${2:?usage: verify-receipt <receipt.json> <principal>}
 sig="$receipt.sig"
 [ -f "$receipt" ] || { echo "no such receipt: $receipt"; exit 1; }
 [ -f "$sig" ] || { echo "unsigned: $sig is missing"; exit 1; }
 who=$(ssh-keygen -Y find-principals -f .office/allowed_signers -s "$sig" 2>/dev/null) \
   || { echo "REFUSED $receipt: signed by a key this office does not trust"; exit 1; }
-ssh-keygen -Y verify -f .office/allowed_signers -I "$who" -n desk-receipt -s "$sig" < "$receipt" >/dev/null 2>&1 \
+[ "$who" = "$want" ] || { echo "REFUSED $receipt: signed by $who, this gate takes $want"; exit 1; }
+ssh-keygen -Y verify -f .office/allowed_signers -I "$want" -n desk-receipt -s "$sig" < "$receipt" >/dev/null 2>&1 \
   || { echo "INVALID $receipt: signature does not match its bytes"; exit 1; }
-echo "VALID $receipt — signed by $who"
+echo "VALID $receipt, signed by $want"
