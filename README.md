@@ -159,10 +159,62 @@ threads:
 | `gates` | Ordered. Each has an `owner` column and an `engineer` column. `order: engineer-first` blocks the owner until the engineer's column is complete. |
 | `desks` | One per role. `harness` is `claude`, `codex`, `cursor` or `custom` (with a `command`). `budget` is tokens per sprint. `cwd` defaults to the repo root. |
 | `threads` | Work items. One desk each, optional milestone, optional `gates:` subset. |
+| `gates.<gate>.checks` | Optional. `item: command`. The item is accepted only if the command exits 0. See [Gate checks](#gate-checks). |
 
 State lives in `.office/board.yaml` (which gate each thread is at, what was
 filed, when, with what evidence) and `.office/launches.yaml` (when each
 desk was started, for meter attribution). Commit both or ignore both.
+
+## Gate checks
+
+A gate item can carry a check: a shell command that has to exit 0 before the
+item is accepted. This is how a hand-off between sessions becomes something
+you can prove after the fact, and not a line someone typed.
+
+```yaml
+gates:
+  shipped:
+    engineer: [tests-green, receipt]
+    owner:    [accept]
+    order: engineer-first
+    checks:
+      tests-green: "python -m pytest -q"
+      receipt:     "your-verifier {evidence}"
+```
+
+```console
+$ desk deliver auth-flow engineer receipt
+error: shipped:receipt has a check; pass --evidence
+
+$ desk deliver auth-flow engineer receipt --evidence tampered.json
+error: check refused engineer:receipt on auth-flow (exit 1): your-verifier {evidence}
+INVALID tampered.json: failed steps_root, steps_merkle_root, signature
+
+$ desk deliver auth-flow engineer receipt --evidence .receipts/5f1c….json
+check passed  your-verifier {evidence}  sha256:9b1e…
+filed engineer:receipt on auth-flow at gate shipped
+```
+
+- **The command is yours.** `desk` names no verifier and signs nothing. A test
+  suite, a linter, `gh pr checks`, or a verifier for signed session receipts
+  all fit. `{evidence}`, `{thread}`, `{gate}` and `{item}` are substituted
+  shell-quoted, and the same values are exported as `DESK_EVIDENCE`,
+  `DESK_THREAD`, `DESK_GATE` and `DESK_ITEM`. It runs from the office root,
+  with a 300 s limit.
+- **A refusal writes nothing.** The board only moves when the check passes.
+- **Evidence files are pinned.** When the evidence is a file, its sha256 goes
+  on the board next to the command it passed.
+- **One file backs one link.** A file already accepted anywhere on the board
+  is refused a second time. An old receipt cannot be replayed on a new
+  hand-off.
+- **`desk verify` re-checks every accepted link.** It re-runs each check, and
+  fails if an accepted evidence file changed or disappeared. It exits 1 if
+  any link broke, so it can run in CI or in someone else's clone.
+
+A check proves what its command proves, and no more. A signature check proves
+who sealed the evidence and that it has not changed since. It does not prove
+the work was right. `office.yaml` runs these commands the way a Makefile runs
+its targets: review changes to it the same way.
 
 ## The meter
 
@@ -207,7 +259,8 @@ estimated in their place.
 | `desk status` | Sprint header, every thread's gate, who owes what. |
 | `desk board` | The full table. |
 | `desk inbox --as owner\|engineer` | What one hat owes right now, and what it is waiting on. |
-| `desk deliver <thread> <hat> <item> [--note] [--evidence]` | File one deliverable at the thread's current gate. Refused if the item is wrong, already filed, or blocked by `engineer-first`. |
+| `desk deliver <thread> <hat> <item> [--note] [--evidence]` | File one deliverable at the thread's current gate. Refused if the item is wrong, already filed, blocked by `engineer-first`, or if its gate check fails. |
+| `desk verify [thread]` | Re-run every accepted gate check, and flag evidence that changed after it was accepted. Exits 1 if any link broke. |
 | `desk meter [--days N]` | Tokens per desk for the current sprint, or the last N days, against budget, with a 30-day projection. |
 
 Cursor is different. `cursor-agent` writes its sessions to

@@ -7,6 +7,9 @@ All notable changes to this project are recorded here. Format follows
 ## [Unreleased]
 
 ### Added
+- Gate checks: `gates.<gate>.checks.<item>` names a command that must exit 0
+  before the item is accepted. Evidence files are pinned by sha256, a file
+  backs at most one link, and `desk verify` re-runs every accepted check.
 - `cursor` harness: `desk up` launches `cursor-agent` with the same pointer
   prompt as Codex; the meter reads `~/.cursor/chats` and attributes sessions
   by name, launch record or directory.

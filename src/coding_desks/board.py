@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 import yaml
 
+from . import checks
 from .manifest import HATS, Office
 
 CLOSED = "closed"
@@ -21,6 +22,8 @@ class Delivery:
     note: str | None = None
     evidence: str | None = None
     at: str | None = None
+    check: str | None = None  # the gate check command this item passed, as written in office.yaml
+    digest: str | None = None  # sha256 of the evidence file at acceptance, when it is a file
 
     def to_dict(self) -> dict:
         return {k: v for k, v in self.__dict__.items() if v is not None}
@@ -34,6 +37,23 @@ class ThreadState:
 
     def filed(self, gate: str, hat: str) -> dict[str, Delivery]:
         return self.delivered.get(gate, {}).get(hat, {})
+
+
+@dataclass
+class Recheck:
+    """One accepted, checked deliverable re-examined by `desk verify`."""
+
+    thread: str
+    gate: str
+    hat: str
+    item: str
+    evidence: str
+    problem: str | None  # None when the link still holds
+    output: str = ""
+
+    @property
+    def ok(self) -> bool:
+        return self.problem is None
 
 
 @dataclass
@@ -170,8 +190,26 @@ class Board:
             raise BoardError(f"gate {st.gate} is {gate.order}: {hat} may not file until {other} files {owes}")
         if item in st.filed(st.gate, hat):
             raise BoardError(f"{hat}:{item} already filed at {st.gate} for {thread}")
+        check, dig = None, None
+        if item in gate.checks:
+            if not evidence:
+                raise BoardError(f"{st.gate}:{item} has a check; pass --evidence")
+            check = gate.checks[item]
+            dig = checks.digest(self.office.root, evidence)
+            if dig and (seen := self._accepted(dig)):
+                raise BoardError(f"that evidence was already accepted at {seen}; one file backs one link")
+            res = checks.run(self.office.root, check, evidence=evidence, thread=thread, gate=st.gate, item=item)
+            if not res.ok:
+                raise BoardError(
+                    f"check refused {hat}:{item} on {thread} (exit {res.returncode}): {check}"
+                    + (f"\n{res.output}" if res.output else "")
+                )
         st.delivered.setdefault(st.gate, {}).setdefault(hat, {})[item] = Delivery(
-            note=note, evidence=evidence, at=dt.datetime.now().astimezone().isoformat(timespec="seconds")
+            note=note,
+            evidence=evidence,
+            at=dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+            check=check,
+            digest=dig,
         )
         row = self.row(thread)
         advanced = False
@@ -182,6 +220,43 @@ class Board:
             advanced = True
             row = self.row(thread)
         return row, advanced
+
+    def _accepted(self, digest: str) -> str | None:
+        """Where a file with this digest was already accepted, as `thread gate:hat:item`."""
+        for name, st in self.threads.items():
+            for gate, hats in st.delivered.items():
+                for hat, items in hats.items():
+                    for item, d in items.items():
+                        if d.digest == digest:
+                            return f"{name} {gate}:{hat}:{item}"
+        return None
+
+    def recheck(self, thread: str | None = None) -> list[Recheck]:
+        """Re-run every accepted check, and flag evidence files that changed since acceptance."""
+        names = [thread] if thread else list(self.office.threads)
+        out = []
+        for name in names:
+            st = self._state(name)
+            for gate, hats in st.delivered.items():
+                for hat, items in hats.items():
+                    for item, d in items.items():
+                        if not d.check:
+                            continue
+                        ev = d.evidence or ""
+                        problem, output = None, ""
+                        if d.digest:
+                            now = checks.digest(self.office.root, ev)
+                            if now is None:
+                                problem = "evidence file is gone"
+                            elif now != d.digest:
+                                problem = "evidence changed since it was accepted"
+                        if problem is None:
+                            res = checks.run(self.office.root, d.check, evidence=ev, thread=name, gate=gate, item=item)
+                            output = res.output
+                            if not res.ok:
+                                problem = f"check now fails (exit {res.returncode})"
+                        out.append(Recheck(name, gate, hat, item, ev, problem, output))
+        return out
 
     def inbox(self, hat: str) -> list[SyncRow]:
         if hat not in HATS:
