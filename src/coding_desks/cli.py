@@ -18,7 +18,7 @@ from .manifest import HATS, OFFICE_FILE, STATE_DIR, ManifestError, Office, load,
 
 # -- output helpers --------------------------------------------------------------
 
-_COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+_COLOR = (sys.stdout.isatty() or bool(os.environ.get("FORCE_COLOR"))) and not os.environ.get("NO_COLOR")
 
 
 def _c(code: str, s: str) -> str:
@@ -244,7 +244,8 @@ def cmd_deliver(a) -> None:
     paint = owner if a.hat == "owner" else eng
     filed = board.threads[a.thread].filed(gate, a.hat).get(a.item) if gate else None
     if filed and filed.check:
-        print(ok("check passed") + dim(f"  {filed.check}") + (dim(f"  {filed.digest}") if filed.digest else ""))
+        short = f"  {filed.digest[:19]}…" if filed.digest else ""  # sha256: + 12 hex; the board keeps it whole
+        print(ok("check passed") + dim(f"  {filed.check}{short}"))
     print(
         f"filed {paint(a.hat + ':' + a.item)} on {a.thread} at gate {row.gate if not advanced else dim('(previous)')}"
     )

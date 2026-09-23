@@ -19,6 +19,7 @@
   <a href="#quick-start">Quick start</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#the-manifest">Manifest</a> ·
+  <a href="#gate-checks">Gate checks</a> ·
   <a href="#the-meter">Meter</a> ·
   <a href="#commands">Commands</a> ·
   <a href="#design">Design</a> ·
@@ -39,6 +40,16 @@ refuses the owner's verdict until the engineer's evidence is on file.
 
 That is the whole trick. The timeline cannot drift, because nobody can sign
 off on nothing.
+
+<p align="center">
+  <img src="docs/demo/signed-handoffs.svg" width="880"
+       alt="A terminal replay: a planner desk and a builder desk hand one thread across two gates. A receipt with no evidence, an edited receipt, a receipt signed by an untrusted key and a replayed receipt are all refused; the real receipts are accepted, the office runs the tests itself, and desk verify re-checks every link and catches one changed byte.">
+</p>
+<p align="center"><sub>
+  Two desks, one thread, every hand-off gated on a signed receipt.
+  Replayed from a real run of <a href="examples/signed-handoffs/demo.sh"><code>examples/signed-handoffs/demo.sh</code></a>.
+  Run it yourself, it takes about three seconds.
+</sub></p>
 
 <br>
 
@@ -183,17 +194,26 @@ gates:
 ```
 
 ```console
-$ desk deliver auth-flow engineer receipt
-error: shipped:receipt has a check; pass --evidence
+$ desk deliver slug engineer receipt
+error: planned:receipt has a check; pass --evidence
 
-$ desk deliver auth-flow engineer receipt --evidence tampered.json
-error: check refused engineer:receipt on auth-flow (exit 1): your-verifier {evidence}
-INVALID tampered.json: failed steps_root, steps_merkle_root, signature
+$ desk deliver slug engineer receipt --evidence receipts/edited.json
+error: check refused engineer:receipt on slug (exit 1): ./verify-receipt {evidence}
+INVALID receipts/edited.json: signature does not match its bytes
 
-$ desk deliver auth-flow engineer receipt --evidence .receipts/5f1c….json
-check passed  your-verifier {evidence}  sha256:9b1e…
-filed engineer:receipt on auth-flow at gate shipped
+$ desk deliver slug engineer receipt --evidence receipts/planner-9936.json
+check passed  ./verify-receipt {evidence}  sha256:146dd9e23886…
+filed engineer:receipt on slug at gate planned
 ```
+
+**Try it:** `uv run examples/signed-handoffs/demo.sh`. It needs no model and
+no network, only `ssh-keygen`. Two desks share one thread. Each session's
+receipt is signed with that desk's SSH key, and the office trusts exactly
+the keys in `.office/allowed_signers`. The sessions in the example are
+scripted stand-ins so it runs anywhere. With a real harness, the receipt
+comes from a hook that fires when the session ends, and the gate works the
+same way. The demo checks its own outcomes and exits 1 if any hand-off comes
+out differently, and CI runs it.
 
 - **The command is yours.** `desk` names no verifier and signs nothing. A test
   suite, a linter, `gh pr checks`, or a verifier for signed session receipts
