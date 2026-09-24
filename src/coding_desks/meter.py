@@ -324,7 +324,9 @@ def explain(office: Office, sessions: list[Session], launches: list[Launch]) -> 
     2. name    the session's name equals a desk name
     3. alias   the name matches a `sessions:` glob of exactly one desk
     4. launch  a `desk up` launch record just before the session began, same harness + cwd
-    5. cwd     exactly one desk claims this harness (or `any`) + cwd
+    5. cwd     exactly one desk of this harness claims this cwd (an `any` desk
+               collects by id, name and alias only, so adding one never moves
+               a session it does not name)
 
     Two desks matching at one rule is a tie: that rule decides nothing and the
     session falls through. If no rule decides, the session is UNASSIGNED and
@@ -364,7 +366,7 @@ def explain(office: Office, sessions: list[Session], launches: list[Launch]) -> 
         if best:
             result[s.id] = Attribution(best.desk, "launch")
             continue
-        cands = [n for h, n in desk_by_cwd.get(str(Path(s.cwd).resolve()), []) if h in (s.harness, "any")]
+        cands = [n for h, n in desk_by_cwd.get(str(Path(s.cwd).resolve()), []) if h == s.harness]
         if len(cands) == 1:
             result[s.id] = Attribution(cands[0], "cwd")
             continue

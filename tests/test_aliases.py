@@ -45,10 +45,9 @@ def test_alias_globs_ignore_case_and_span_harnesses(tmp_path):
         "b": ("payments", "alias"),
         "c": ("payments", "alias"),
         "d": ("search", "alias"),
-        "e": (UNASSIGNED, "ambiguous"),  # both any desks claim the root cwd, so rule 5 ties
-        "f": (UNASSIGNED, "ambiguous"),
+        "e": (UNASSIGNED, "none"),  # any desks never take a session by directory
+        "f": (UNASSIGNED, "none"),
     }
-    assert sorted(who["e"].candidates) == ["payments", "search"]
 
 
 def test_overlapping_aliases_are_a_tie_never_first_match(tmp_path):
@@ -82,7 +81,7 @@ def test_rule_order_id_then_name_then_alias_then_launch_then_cwd(tmp_path):
             _sess("claude", "s-named", src, "pinned"),  # a name equal to a desk beats the alias
             _sess("claude", "s-alias", src, "web-login"),  # alias beats the launch record
             _sess("claude", "s-launch", src, "notes"),  # launch record
-            _sess("codex", "s-cwd", src, "notes"),  # codex at src: dev is claude, so two any desks tie
+            _sess("codex", "s-cwd", src, "notes"),  # codex at src: dev is claude, any desks never take by cwd
         ],
         launches,
     )
@@ -90,15 +89,34 @@ def test_rule_order_id_then_name_then_alias_then_launch_then_cwd(tmp_path):
     assert who["s-named"].desk == "pinned" and who["s-named"].rule == "name"
     assert who["s-alias"].desk == "web" and who["s-alias"].rule == "alias"
     assert who["s-launch"].desk == "dev" and who["s-launch"].rule == "launch"
-    assert who["s-cwd"].desk == UNASSIGNED and sorted(who["s-cwd"].candidates) == ["pinned", "web"]
+    assert who["s-cwd"].desk == UNASSIGNED and who["s-cwd"].rule == "none"
 
 
-def test_any_desk_competes_with_a_harness_desk_at_the_same_cwd(tmp_path):
+def test_an_any_desk_never_takes_a_session_by_directory(tmp_path):
     o = _office(tmp_path, {"dev": {"harness": "claude", "role": "dev.md"}, "ops": {"harness": "any"}})
     root = str(tmp_path)
     who = meter.explain(o, [_sess("claude", "c", root), _sess("codex", "x", root)], [])
-    assert who["c"].desk == UNASSIGNED and sorted(who["c"].candidates) == ["dev", "ops"]
-    assert who["x"].desk == "ops" and who["x"].rule == "cwd"  # only the any desk takes codex here
+    assert who["c"].desk == "dev" and who["c"].rule == "cwd"
+    assert who["x"].desk == UNASSIGNED and who["x"].rule == "none"
+
+
+def test_adding_an_alias_desk_moves_only_the_sessions_it_names(office):
+    root = str(office.root)
+    sessions = [
+        _sess("claude", "by-name", root, name="pm"),
+        _sess("claude", "unique-cwd", root + "/src"),
+        _sess("codex", "codex-root", root),
+        _sess("claude", "root-unnamed", root),
+        _sess("cursor", "cursor-root", root),
+        _sess("claude", "ops-named", root, name="ops-nightly"),
+    ]
+    before = meter.attribute(office, sessions, [])
+    data = yaml.safe_load((office.root / "office.yaml").read_text())
+    data["desks"]["ops"] = {"harness": "any", "sessions": ["ops-*"]}
+    after = meter.attribute(parse(data, office.root), sessions, [])
+    assert after.pop("ops-named") == "ops"
+    before.pop("ops-named")
+    assert after == before
 
 
 def test_estate_lets_the_office_live_outside_the_repo_it_meters(tmp_path):
@@ -187,6 +205,6 @@ def test_cli_sessions_shows_desk_and_rule(tmp_path, monkeypatch, capsys):
     cli.main(["sessions", "--days", "1"])
     out = capsys.readouterr().out
     assert "api-auth" in out and "alias" in out and "11111111" in out
-    assert "ambiguous: api, web" in out
+    assert "none" in out and "ambiguous" not in out
     assert "33333333" not in out  # outside the estate: not listed
     assert "2 sessions · 1 attributed · 1 unassigned (1 of them unnamed)" in out

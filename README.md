@@ -180,7 +180,9 @@ attributes each session to a desk by, in order:
 3. the name matches a `sessions:` glob of exactly one desk;
 4. a `desk up` launch record within ten minutes of the session start, same
    harness and directory;
-5. exactly one desk claims that harness (or `any`) and directory.
+5. exactly one desk of that harness claims the directory. A `harness: any`
+   desk takes no part here: it collects by id, name and alias only, so
+   adding one never moves a session it does not name.
 
 Two desks matching at the same rule is a tie, never a first match: that
 rule decides nothing and the next one is tried. Anything no rule decides
@@ -194,7 +196,7 @@ STARTED      HARNESS  ID        NAME          TURNS  TOKENS  DESK          BY
 09-23 14:12  claude   3f2c1a90  api-auth      212    18.4M   api           alias
 09-23 15:40  codex    7be01d44  api-webhooks  96     6.1M    api           alias
 09-23 16:05  cursor   c91a5e02  checkout-ui   41     n/a     web           alias
-09-23 19:30  cursor   0d44b7e1  —             3      n/a     (unassigned)  ambiguous: api, web
+09-23 19:30  cursor   0d44b7e1  —             3      n/a     (unassigned)  none
 
 4 sessions · 3 attributed · 1 unassigned (1 of them unnamed)
 ```
