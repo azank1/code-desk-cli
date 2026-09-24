@@ -280,6 +280,53 @@ def cmd_meter(a) -> None:
     print(meter_table(office, days=a.days))
 
 
+def cmd_sessions(a) -> None:
+    office = _office()
+    label, start, end = meter.window(office, days=a.days)
+    sessions = meter.read_all()
+    why = meter.explain(office, sessions, meter.read_launches(office))
+    body, counts = [], {"attributed": 0, "unassigned": 0, "unnamed": 0}
+    for s in sorted(sessions, key=lambda s: s.first_ts):
+        at = why[s.id]
+        turns = [t for t in s.turns if start <= t.ts < end]
+        if at.desk is None or not turns:
+            continue
+        if at.desk == meter.UNASSIGNED:
+            counts["unassigned"] += 1
+            if not s.name:
+                counts["unnamed"] += 1
+            desk = bad(meter.UNASSIGNED)
+            rule = dim(at.rule + (": " + ", ".join(at.candidates) if at.candidates else ""))
+        else:
+            counts["attributed"] += 1
+            desk, rule = at.desk, dim(at.rule)
+        tokens = meter.fmt_tokens(sum(t.total for t in turns)) if s.metered else dim("n/a")
+        body.append(
+            [
+                s.first_ts.astimezone().strftime("%m-%d %H:%M"),
+                s.harness,
+                s.id[:8],
+                s.name or dim("—"),
+                str(len(turns)),
+                tokens,
+                desk,
+                rule,
+            ]
+        )
+    if not body:
+        print(dim(f"no sessions under {office.estate_root} in {label}"))
+        return
+    print(f"{dim('sessions')} {label}    {dim('estate')} {office.estate_root}")
+    print(table(["STARTED", "HARNESS", "ID", "NAME", "TURNS", "TOKENS", "DESK", "BY"], body))
+    print()
+    print(
+        dim(
+            f"{len(body)} sessions · {counts['attributed']} attributed · "
+            f"{counts['unassigned']} unassigned ({counts['unnamed']} of them unnamed)"
+        )
+    )
+
+
 def cmd_up(a) -> None:
     office = _office()
     try:
@@ -331,6 +378,10 @@ def main(argv: list[str] | None = None) -> None:
     s = sp.add_parser("meter", help="harness usage per desk from the transcript logs")
     s.add_argument("--days", type=int, help="ignore the sprint window and use the last N days")
     s.set_defaults(fn=cmd_meter)
+
+    s = sp.add_parser("sessions", help="every session under the office and which desk it went to, and why")
+    s.add_argument("--days", type=int, help="ignore the sprint window and use the last N days")
+    s.set_defaults(fn=cmd_sessions)
 
     s = sp.add_parser("up", help="open the office: one tmux window per desk")
     s.add_argument("--dry-run", action="store_true", help="print the tmux commands only")

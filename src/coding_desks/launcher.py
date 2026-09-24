@@ -7,7 +7,7 @@ import shlex
 import shutil
 import subprocess
 
-from .manifest import Desk, Office
+from .manifest import LAUNCHABLE, Desk, Office
 from .meter import Launch, record_launch
 
 
@@ -16,6 +16,8 @@ class LaunchError(Exception):
 
 
 def desk_command(office: Office, desk: Desk) -> list[str]:
+    if desk.harness not in LAUNCHABLE or not desk.role:
+        raise LaunchError(f"desk {desk.name}: harness {desk.harness} is metered, never launched")
     role = office.root / desk.role
     if desk.harness == "claude":
         return ["claude", "--name", desk.name, "--append-system-prompt-file", str(role)]
@@ -31,7 +33,7 @@ def desk_command(office: Office, desk: Desk) -> list[str]:
         # attributes by rule 1; otherwise rule 2 (launch record) applies.
         return ["cursor-agent", codex_pointer(desk, role)]
     if desk.harness == "custom" and desk.command:
-        return shlex.split(desk.command.format(name=desk.name, role=str(role), cwd=str(office.root / desk.cwd)))
+        return shlex.split(desk.command.format(name=desk.name, role=str(role), cwd=str(office.estate_root / desk.cwd)))
     raise LaunchError(f"desk {desk.name}: no command for harness {desk.harness}")
 
 
@@ -43,13 +45,20 @@ def codex_pointer(desk: Desk, role) -> str:
     )
 
 
+def launchable(office: Office) -> list[Desk]:
+    """Desks `desk up` opens. A `harness: any` desk only collects sessions for the meter."""
+    return [d for d in office.desks.values() if d.harness in LAUNCHABLE]
+
+
 def tmux_plan(office: Office) -> list[list[str]]:
     """The tmux argv list that opens the office. Pure; nothing runs."""
+    if not launchable(office):
+        raise LaunchError("no desk here can be launched: every desk is `harness: any`")
     session = office.name
     plan: list[list[str]] = []
     first = True
-    for d in office.desks.values():
-        cwd = str((office.root / d.cwd).resolve())
+    for d in launchable(office):
+        cwd = str((office.estate_root / d.cwd).resolve())
         cmd = shlex.join(desk_command(office, d))
         if first:
             plan.append(["tmux", "new-session", "-d", "-s", session, "-n", d.name, "-c", cwd, cmd])
@@ -74,8 +83,8 @@ def up(office: Office, dry_run: bool = False, attach: bool = True) -> list[list[
         r = subprocess.run(argv, capture_output=True, text=True)
         if r.returncode != 0:
             raise LaunchError(f"{shlex.join(argv)}\n{r.stderr.strip()}")
-    for d in office.desks.values():
-        record_launch(office, Launch(d.name, d.harness, str((office.root / d.cwd).resolve()), now))
+    for d in launchable(office):
+        record_launch(office, Launch(d.name, d.harness, str((office.estate_root / d.cwd).resolve()), now))
     if attach:
         subprocess.run(["tmux", "attach", "-t", office.name])
     return plan

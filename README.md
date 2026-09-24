@@ -157,7 +157,8 @@ threads:
 | `hats` | Exactly `owner` and `engineer`. They may be the same person. |
 | `cadence` | Sprint length in days and the first sprint's start date. Budgets are per sprint. |
 | `gates` | Ordered. Each has an `owner` column and an `engineer` column. `order: engineer-first` blocks the owner until the engineer's column is complete. |
-| `desks` | One per role. `harness` is `claude`, `codex`, `cursor` or `custom` (with a `command`). `budget` is tokens per sprint. `cwd` defaults to the repo root. |
+| `desks` | One per role. `harness` is `claude`, `codex`, `cursor` or `custom` (with a `command`), or `any` for a desk that is metered but never launched. `budget` is tokens per sprint. `cwd` defaults to the repo root. `sessions` lists name globs (`api-*`, any case) and pinned ids (`id:<session id>`) that belong to the desk. |
+| `estate` | The directory whose sessions this office meters, relative to `office.yaml`. Defaults to `.`; set it to keep an office beside a repo instead of inside it. |
 | `threads` | Work items. One desk each, optional milestone, optional `gates:` subset. |
 
 State lives in `.office/board.yaml` (which gate each thread is at, what was
@@ -173,14 +174,35 @@ dedupes (Claude repeats usage across the content blocks of one response;
 Codex keeps a cumulative per-turn record that must be ignored), and
 attributes each session to a desk by, in order:
 
-1. the session's name equals a desk name (`claude --name`, or a Codex
+1. a desk's `sessions:` pins the session id (`id:<session id>`);
+2. the session's name equals a desk name (`claude --name`, or a Codex
    thread name from its session index);
-2. a `desk up` launch record within ten minutes of the session start, same
+3. the name matches a `sessions:` glob of exactly one desk;
+4. a `desk up` launch record within ten minutes of the session start, same
    harness and directory;
-3. exactly one desk claims that harness and directory.
+5. exactly one desk claims that harness (or `any`) and directory.
 
-Anything else under the office root shows as `(unassigned)`. Anything
-outside is ignored.
+Two desks matching at the same rule is a tie, never a first match: that
+rule decides nothing and the next one is tried. Anything no rule decides
+shows as `(unassigned)`. Anything outside the estate is ignored.
+`desk sessions` lists every session with the desk it went to and the rule
+that sent it there, or the desks that tied:
+
+```
+sessions last 7 days    estate /work/shop
+STARTED      HARNESS  ID        NAME          TURNS  TOKENS  DESK          BY
+09-23 14:12  claude   3f2c1a90  api-auth      212    18.4M   api           alias
+09-23 15:40  codex    7be01d44  api-webhooks  96     6.1M    api           alias
+09-23 16:05  cursor   c91a5e02  checkout-ui   41     n/a     web           alias
+09-23 19:30  cursor   0d44b7e1  —             3      n/a     (unassigned)  ambiguous: api, web
+
+4 sessions · 3 attributed · 1 unassigned (1 of them unnamed)
+```
+
+A real team rarely keeps one session per desk. The same topic runs in a
+Claude session in the morning and a Codex session after lunch, under names
+nobody agreed on. A `harness: any` desk with `sessions:` globs collects all
+of them, and `desk up` skips it.
 
 ```
 usage sprint 2 · 2026-09-22 → 2026-09-29
@@ -209,6 +231,7 @@ estimated in their place.
 | `desk inbox --as owner\|engineer` | What one hat owes right now, and what it is waiting on. |
 | `desk deliver <thread> <hat> <item> [--note] [--evidence]` | File one deliverable at the thread's current gate. Refused if the item is wrong, already filed, or blocked by `engineer-first`. |
 | `desk meter [--days N]` | Tokens per desk for the current sprint, or the last N days, against budget, with a 30-day projection. |
+| `desk sessions [--days N]` | Every session under the estate, the desk it was attributed to, and the rule that decided it. |
 
 Cursor is different. `cursor-agent` writes its sessions to
 `~/.cursor/chats/**/{meta.json,store.db}` with the directory, the start

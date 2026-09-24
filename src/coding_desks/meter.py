@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import fnmatch
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -302,22 +303,58 @@ def _under(path: str, root: Path) -> bool:
         return False
 
 
-def attribute(office: Office, sessions: list[Session], launches: list[Launch]) -> dict[str, str | None]:
-    """session.id -> desk name, UNASSIGNED (in this office, no desk), or None (not this office)."""
-    result: dict[str, str | None] = {}
-    desk_by_cwd: dict[tuple[str, str], list[str]] = {}
+def alias_match(pattern: str, session: Session) -> bool:
+    """`id:<session id>` pins one session; anything else is a glob over its name, any case."""
+    if pattern.startswith("id:"):
+        return session.id == pattern[3:].strip()
+    return bool(session.name) and fnmatch.fnmatchcase(session.name.lower(), pattern.strip().lower())
+
+
+@dataclass
+class Attribution:
+    desk: str | None  # a desk, UNASSIGNED (in this office, no desk) or None (not this office)
+    rule: str  # id · name · alias · launch · cwd · ambiguous · none · outside
+    candidates: list[str] = field(default_factory=list)  # the desks that tied, when ambiguous
+
+
+def explain(office: Office, sessions: list[Session], launches: list[Launch]) -> dict[str, Attribution]:
+    """session.id -> which desk, and the rule that decided it. First rule that decides wins:
+
+    1. id      a desk's `sessions:` pins this session id
+    2. name    the session's name equals a desk name
+    3. alias   the name matches a `sessions:` glob of exactly one desk
+    4. launch  a `desk up` launch record just before the session began, same harness + cwd
+    5. cwd     exactly one desk claims this harness (or `any`) + cwd
+
+    Two desks matching at one rule is a tie: that rule decides nothing and the
+    session falls through. If no rule decides, the session is UNASSIGNED and
+    the tie, if any, is kept so it can be shown.
+    """
+    estate = office.estate_root
+    result: dict[str, Attribution] = {}
+    desk_by_cwd: dict[str, list[tuple[str, str]]] = {}
     for d in office.desks.values():
-        key = (d.harness, str((office.root / d.cwd).resolve()))
-        desk_by_cwd.setdefault(key, []).append(d.name)
+        desk_by_cwd.setdefault(str((estate / d.cwd).resolve()), []).append((d.harness, d.name))
     for s in sessions:
-        if not s.cwd or not _under(s.cwd, office.root):
-            result[s.id] = None
+        if not s.cwd or not _under(s.cwd, estate):
+            result[s.id] = Attribution(None, "outside")
             continue
-        # 1. the harness recorded a name equal to a desk name
+        tie: list[str] = []
+        pinned = [
+            d.name for d in office.desks.values() if any(p.startswith("id:") and alias_match(p, s) for p in d.sessions)
+        ]
+        if len(pinned) == 1:
+            result[s.id] = Attribution(pinned[0], "id")
+            continue
+        tie = tie or (pinned if len(pinned) > 1 else [])
         if s.name and s.name in office.desks:
-            result[s.id] = s.name
+            result[s.id] = Attribution(s.name, "name")
             continue
-        # 2. a launch record just before the session began, same harness + cwd
+        aliased = [d.name for d in office.desks.values() if any(alias_match(p, s) for p in d.sessions)]
+        if len(aliased) == 1:
+            result[s.id] = Attribution(aliased[0], "alias")
+            continue
+        tie = tie or (aliased if len(aliased) > 1 else [])
         best: Launch | None = None
         for ln in launches:
             if ln.harness != s.harness or str(Path(ln.cwd).resolve()) != str(Path(s.cwd).resolve()):
@@ -325,12 +362,20 @@ def attribute(office: Office, sessions: list[Session], launches: list[Launch]) -
             if ln.at <= s.first_ts <= ln.at + LAUNCH_MATCH_WINDOW and (best is None or ln.at > best.at):
                 best = ln
         if best:
-            result[s.id] = best.desk
+            result[s.id] = Attribution(best.desk, "launch")
             continue
-        # 3. exactly one desk claims this harness + cwd
-        cands = desk_by_cwd.get((s.harness, str(Path(s.cwd).resolve())), [])
-        result[s.id] = cands[0] if len(cands) == 1 else UNASSIGNED
+        cands = [n for h, n in desk_by_cwd.get(str(Path(s.cwd).resolve()), []) if h in (s.harness, "any")]
+        if len(cands) == 1:
+            result[s.id] = Attribution(cands[0], "cwd")
+            continue
+        tie = tie or (cands if len(cands) > 1 else [])
+        result[s.id] = Attribution(UNASSIGNED, "ambiguous" if tie else "none", tie)
     return result
+
+
+def attribute(office: Office, sessions: list[Session], launches: list[Launch]) -> dict[str, str | None]:
+    """session.id -> desk name, UNASSIGNED (in this office, no desk), or None (not this office)."""
+    return {sid: a.desk for sid, a in explain(office, sessions, launches).items()}
 
 
 # -- summaries -----------------------------------------------------------------
@@ -376,6 +421,9 @@ def summarize(
         row = rows.setdefault(desk, DeskUsage(desk, s.harness))
         if desk == UNASSIGNED and row.harness != s.harness:
             row.harness = "mixed"
+        elif desk in office.desks and office.desks[desk].harness == "any":  # which harnesses it drew on
+            seen = set(row.harness.split("+")) - {"any"} | {s.harness}
+            row.harness = "+".join(h for h in ("claude", "codex", "cursor", "custom") if h in seen)
         row.sessions += 1
         row.turns += len(turns)
         if not s.metered:
