@@ -130,6 +130,12 @@ def test_manifest_rules_for_any_desks(tmp_path):
         _office(tmp_path, {"ops": {"harness": "any"}}, estate="")
 
 
+def test_an_any_desk_with_no_threads_is_not_a_warning(tmp_path):
+    (tmp_path / "dev.md").write_text("# dev\n")
+    o = _office(tmp_path, {"ops": {"harness": "any"}, "dev": {"harness": "claude", "role": "dev.md"}})
+    assert [w for w in warnings(o) if "no threads" in w] == ["desk dev: no threads assigned"]
+
+
 def test_desk_up_never_launches_an_any_desk(tmp_path):
     o = _office(tmp_path, {"ops": {"harness": "any"}})
     with pytest.raises(LaunchError, match="every desk is `harness: any`"):

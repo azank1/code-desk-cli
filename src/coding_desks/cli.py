@@ -296,7 +296,8 @@ def cmd_sessions(a) -> None:
             if not s.name:
                 counts["unnamed"] += 1
             desk = bad(meter.UNASSIGNED)
-            rule = dim(at.rule + (": " + ", ".join(at.candidates) if at.candidates else ""))
+            tied = ", ".join(at.candidates) if len(at.candidates) <= 3 else f"{len(at.candidates)} desks"
+            rule = dim(at.rule + (": " + tied if at.candidates else ""))
         else:
             counts["attributed"] += 1
             desk, rule = at.desk, dim(at.rule)

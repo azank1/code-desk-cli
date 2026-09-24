@@ -279,7 +279,7 @@ def warnings(office: Office) -> list[str]:
     if office.cadence.start is None:
         out.append("cadence.start unset: no sprint window, meter reports the last 7 days")
     used = {t.desk for t in office.threads.values()}
-    for d in office.desks:
-        if d not in used:
+    for d, desk in office.desks.items():
+        if d not in used and desk.harness != "any":  # an any desk exists to be metered
             out.append(f"desk {d}: no threads assigned")
     return out
