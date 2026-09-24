@@ -7,6 +7,15 @@ All notable changes to this project are recorded here. Format follows
 ## [Unreleased]
 
 ### Added
+- Session aliases: a desk's `sessions:` takes name globs (any case) and
+  pinned `id:<session id>` entries, so one desk collects a topic's sessions
+  across harnesses and names. Ties between desks are reported, never
+  resolved by order.
+- `harness: any`: a desk that is metered but never launched by `desk up`.
+- `estate:` in `office.yaml`: the directory whose sessions the office
+  meters, so an office can live beside a repo instead of inside it.
+- `desk sessions`: every session, the desk it went to and the rule that
+  decided it.
 - `cursor` harness: `desk up` launches `cursor-agent` with the same pointer
   prompt as Codex; the meter reads `~/.cursor/chats` and attributes sessions
   by name, launch record or directory.

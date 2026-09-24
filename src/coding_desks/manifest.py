@@ -9,7 +9,8 @@ from pathlib import Path
 import yaml
 
 HATS = ("owner", "engineer")
-HARNESSES = ("claude", "codex", "cursor", "custom")
+HARNESSES = ("claude", "codex", "cursor", "custom", "any")
+LAUNCHABLE = ("claude", "codex", "cursor", "custom")
 OFFICE_FILE = "office.yaml"
 STATE_DIR = ".office"
 BOARD_FILE = "board.yaml"
@@ -33,13 +34,14 @@ class Gate:
 @dataclass
 class Desk:
     name: str
-    role: str
+    role: str | None
     harness: str = "claude"
     model: str | None = None
     tier: str | None = None
     cwd: str = "."
     command: str | None = None
     budget: int | None = None  # tokens per sprint
+    sessions: list[str] = field(default_factory=list)  # name globs, or id:<session id>
 
 
 @dataclass
@@ -67,6 +69,7 @@ class Cadence:
 class Office:
     name: str
     root: Path
+    estate: str = "."  # the directory whose sessions this office meters, relative to root
     hats: list[str] = field(default_factory=lambda: list(HATS))
     cadence: Cadence = field(default_factory=Cadence)
     gates: dict[str, Gate] = field(default_factory=dict)
@@ -81,6 +84,10 @@ class Office:
     def thread_gates(self, thread: str) -> list[str]:
         t = self.threads[thread]
         return list(t.gates) if t.gates else self.gate_order
+
+    @property
+    def estate_root(self) -> Path:
+        return (self.root / self.estate).resolve()
 
     @property
     def state_dir(self) -> Path:
@@ -154,7 +161,10 @@ def parse(data: dict, root: Path) -> Office:
     name = data.get("name")
     if not isinstance(name, str) or not name.strip():
         raise ManifestError("name: required")
-    office = Office(name=name.strip(), root=root)
+    estate = data.get("estate", ".")
+    if not isinstance(estate, str) or not estate.strip():
+        raise ManifestError("estate: expected a directory path")
+    office = Office(name=name.strip(), root=root, estate=estate)
 
     hats = _strlist(data.get("hats", list(HATS)), "hats")
     if sorted(hats) != sorted(HATS):
@@ -195,10 +205,16 @@ def parse(data: dict, root: Path) -> Office:
         if harness not in HARNESSES:
             raise ManifestError(f"desks.{dname}.harness: must be one of {HARNESSES}")
         role = d.get("role")
-        if not isinstance(role, str) or not role:
+        if role is not None and (not isinstance(role, str) or not role):
+            raise ManifestError(f"desks.{dname}.role: expected a path to a markdown role prompt")
+        if role is None and harness != "any":
             raise ManifestError(f"desks.{dname}.role: required (path to a markdown role prompt)")
         if harness == "custom" and not d.get("command"):
             raise ManifestError(f"desks.{dname}.command: required for a custom harness")
+        sessions = _strlist(d.get("sessions"), f"desks.{dname}.sessions")
+        for pat in sessions:
+            if not pat.strip() or pat.strip() == "id:":
+                raise ManifestError(f"desks.{dname}.sessions: empty pattern")
         office.desks[dname] = Desk(
             name=dname,
             role=role,
@@ -208,6 +224,7 @@ def parse(data: dict, root: Path) -> Office:
             cwd=str(d.get("cwd", ".")),
             command=d.get("command"),
             budget=_int(d.get("budget"), f"desks.{dname}.budget"),
+            sessions=sessions,
         )
 
     for m in data.get("milestones") or []:
@@ -252,15 +269,17 @@ def load(root: Path | None = None) -> Office:
 def warnings(office: Office) -> list[str]:
     """Non-fatal problems worth printing from `desk check`."""
     out = []
+    if not office.estate_root.is_dir():
+        out.append(f"estate is not a directory: {office.estate}")
     for d in office.desks.values():
-        if not (office.root / d.role).is_file():
+        if d.role and not (office.root / d.role).is_file():
             out.append(f"desk {d.name}: role file missing: {d.role}")
-        if not (office.root / d.cwd).is_dir():
+        if not (office.estate_root / d.cwd).is_dir():
             out.append(f"desk {d.name}: cwd is not a directory: {d.cwd}")
     if office.cadence.start is None:
         out.append("cadence.start unset: no sprint window, meter reports the last 7 days")
     used = {t.desk for t in office.threads.values()}
-    for d in office.desks:
-        if d not in used:
+    for d, desk in office.desks.items():
+        if d not in used and desk.harness != "any":  # an any desk exists to be metered
             out.append(f"desk {d}: no threads assigned")
     return out
