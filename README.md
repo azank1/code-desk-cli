@@ -214,6 +214,45 @@ dev     claude   5     1105   130.1M (124.0M)  2.1M    132.2M   367% of 36.0M  3
 review  cursor   2     96     n/a              n/a     n/a      no data
 ```
 
+### Adopting a repo that already has sessions
+
+Most teams start `desk` in a repo where sessions have been running for
+weeks. `desk adopt` reads what the harnesses already recorded there
+(harness, session id, name, directory, turn counts, never the transcript)
+and proposes desks from the session names. It writes an overlay office
+somewhere else and nothing into the repo:
+
+```
+$ desk adopt work/shop --out overlay
+adopt /work/shop
+DESK           SESS  HARNESSES          TURNS  FROM NAMES
+api            3     claude 2 codex 1   366    api-auth, API-webhooks, shop-api-rate-limits (2)
+checkout       2     claude 1 cursor 1  171    checkout-payments, checkout-ui
+release-notes  1     codex 1            12     release-notes
+
+8 sessions · 3 desks proposed from 6 named sessions · 2 unnamed (codex 1, cursor 1): no desk can be proposed for them
+
+wrote overlay/office.yaml and overlay/sessions.yaml
+```
+
+The grouping is deliberately simple: names that share a first word, or the
+same set of words, once the repo's own name is dropped. It never guesses
+that two different words are one topic. The overlay's desks are
+`harness: any` with the names as `sessions:` aliases, and `estate:` points
+back at the repo.
+
+The proposal is a starting point, not a fact. `sessions.yaml` lists every
+session by id with the proposed desk. Correct it, fill in the ones only you
+can place, then measure the office against it:
+
+```
+$ cd overlay && desk sessions --against sessions.yaml
+```
+
+That prints every session the office puts somewhere other than your list,
+and the share of turns that agree. Edit `office.yaml` (globs, merges, pinned
+ids) until the two agree.
+
 **Cursor** is different. `cursor-agent` writes the directory, start time,
 session name and every message to `~/.cursor/chats`, but no token counts,
 and the IDE's own database has none either. A `cursor` desk is attributed
@@ -233,7 +272,8 @@ estimated in their place.
 | `desk inbox --as owner\|engineer` | What one hat owes right now, and what it is waiting on. |
 | `desk deliver <thread> <hat> <item> [--note] [--evidence]` | File one deliverable at the thread's current gate. Refused if the item is wrong, already filed, or blocked by `engineer-first`. |
 | `desk meter [--days N]` | Tokens per desk for the current sprint, or the last N days, against budget, with a 30-day projection. |
-| `desk sessions [--days N]` | Every session under the estate, the desk it was attributed to, and the rule that decided it. |
+| `desk sessions [--days N] [--against FILE]` | Every session under the estate, the desk it was attributed to, and the rule that decided it. With `--against`, the turns that agree with a confirmed list, and every session that does not. |
+| `desk adopt <dir> --out <dir>` | Propose desks for a repo from the sessions already run in it. Writes an overlay `office.yaml` and `sessions.yaml` outside the repo. |
 
 Cursor is different. `cursor-agent` writes its sessions to
 `~/.cursor/chats/**/{meta.json,store.db}` with the directory, the start

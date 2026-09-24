@@ -10,7 +10,7 @@ import sys
 from importlib import resources
 from pathlib import Path
 
-from . import __version__, meter
+from . import __version__, adopt, meter
 from .board import Board, BoardError, SyncRow
 from .intake import build_prompt
 from .launcher import LaunchError, up
@@ -282,6 +282,8 @@ def cmd_meter(a) -> None:
 
 def cmd_sessions(a) -> None:
     office = _office()
+    if a.against:
+        return sessions_against(office, Path(a.against))
     label, start, end = meter.window(office, days=a.days)
     sessions = meter.read_all()
     why = meter.explain(office, sessions, meter.read_launches(office))
@@ -325,6 +327,71 @@ def cmd_sessions(a) -> None:
             f"{len(body)} sessions · {counts['attributed']} attributed · "
             f"{counts['unassigned']} unassigned ({counts['unnamed']} of them unnamed)"
         )
+    )
+
+
+def sessions_against(office: Office, path: Path) -> None:
+    try:
+        truth = adopt.read_truth(path)
+    except (OSError, adopt.AdoptError) as e:
+        die(str(e))
+    ag = adopt.agreement(office, meter.read_all(), meter.read_launches(office), truth)
+    if ag.disagree:
+        body = [
+            [s.harness, s.id[:8], s.name or dim("—"), str(len(s.turns)), want, bad(got)]
+            for s, want, got in sorted(ag.disagree, key=lambda x: -len(x[0].turns))
+        ]
+        print(table(["HARNESS", "ID", "NAME", "TURNS", "LIST SAYS", "OFFICE SAYS"], body))
+        print()
+    pct = f" ({ag.pct:.1f}%)" if ag.pct is not None else ""
+    paint = ok if ag.pct is not None and not ag.disagree else bad
+    print(paint(f"{ag.turns_agree}/{ag.turns_labelled} turns agree with {path.name}{pct}"))
+    print(
+        dim(
+            f"{len(ag.disagree)} sessions disagree · {len(ag.unlabelled)} in the list with no desk · "
+            f"{len(ag.unlisted)} under the estate but not in the list"
+        )
+    )
+
+
+def cmd_adopt(a) -> None:
+    estate = Path(a.dir).expanduser()
+    if not estate.is_dir():
+        die(f"{a.dir}: not a directory")
+    out = Path(a.out).expanduser()
+    try:
+        adopt.check_out_dir(estate, out)
+    except adopt.AdoptError as e:
+        die(str(e))
+    targets = [out / OFFICE_FILE, out / "sessions.yaml"]
+    if any(t.exists() for t in targets) and not a.force:
+        die(f"{out} already holds an adopted office (use --force to overwrite)")
+    p = adopt.propose(estate, meter.read_all())
+    if not p.sessions:
+        die(f"no Claude Code, Codex or Cursor sessions recorded under {estate.resolve()}")
+    body = []
+    for desk, names in p.desks.items():
+        ss = p.by_desk.get(desk, [])
+        mix = " ".join(f"{h} {n}" for h in ("claude", "codex", "cursor") if (n := sum(s.harness == h for s in ss)))
+        body.append([desk, str(len(ss)), mix, str(sum(len(s.turns) for s in ss)), ", ".join(names)])
+    print(f"{dim('adopt')} {p.estate}")
+    print(table(["DESK", "SESS", "HARNESSES", "TURNS", "FROM NAMES"], body))
+    print()
+    un = p.unnamed
+    mix = ", ".join(f"{h} {n}" for h in ("claude", "codex", "cursor") if (n := sum(s.harness == h for s in un)))
+    print(
+        f"{len(p.sessions)} sessions · {len(p.desks)} desks proposed from {len(p.sessions) - len(un)} named sessions · "
+        + (bad(f"{len(un)} unnamed ({mix}): no desk can be proposed for them") if un else ok("none unnamed"))
+    )
+    if p.outside:
+        print(dim(f"{p.outside} sessions elsewhere or with no directory recorded were not examined"))
+    out.mkdir(parents=True, exist_ok=True)
+    targets[0].write_text(adopt.office_yaml(p, out, a.name or f"{p.estate.name}-adopted"))
+    targets[1].write_text(adopt.sessions_yaml(p))
+    print()
+    print(f"wrote {targets[0]} and {targets[1]}")
+    print(
+        dim(f"next: correct the desk column in sessions.yaml, then `cd {out} && desk sessions --against sessions.yaml`")
     )
 
 
@@ -382,7 +449,15 @@ def main(argv: list[str] | None = None) -> None:
 
     s = sp.add_parser("sessions", help="every session under the office and which desk it went to, and why")
     s.add_argument("--days", type=int, help="ignore the sprint window and use the last N days")
+    s.add_argument("--against", metavar="FILE", help="measure attribution against a confirmed sessions.yaml")
     s.set_defaults(fn=cmd_sessions)
+
+    s = sp.add_parser("adopt", help="propose desks for a repo from the sessions already run in it")
+    s.add_argument("dir", help="the repo whose sessions to read; nothing is written there")
+    s.add_argument("--out", required=True, help="where to write the overlay office.yaml and sessions.yaml")
+    s.add_argument("--name", help="office name (default: <dir>-adopted)")
+    s.add_argument("--force", action="store_true")
+    s.set_defaults(fn=cmd_adopt)
 
     s = sp.add_parser("up", help="open the office: one tmux window per desk")
     s.add_argument("--dry-run", action="store_true", help="print the tmux commands only")

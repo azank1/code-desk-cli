@@ -16,6 +16,12 @@ All notable changes to this project are recorded here. Format follows
   meters, so an office can live beside a repo instead of inside it.
 - `desk sessions`: every session, the desk it went to and the rule that
   decided it.
+- `desk adopt <dir> --out <dir>`: propose desks for a repo from the names
+  of the sessions already run in it, and write an overlay office plus a
+  `sessions.yaml` to correct. Reads session metadata only; refuses to write
+  inside the directory it scans.
+- `desk sessions --against <file>`: the share of turns the office attributes
+  the way a confirmed list says, and every session it does not.
 - `cursor` harness: `desk up` launches `cursor-agent` with the same pointer
   prompt as Codex; the meter reads `~/.cursor/chats` and attributes sessions
   by name, launch record or directory.
