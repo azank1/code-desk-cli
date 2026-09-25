@@ -22,6 +22,7 @@
   <a href="#the-meter">Meter</a> ·
   <a href="#commands">Commands</a> ·
   <a href="#design">Design</a> ·
+  <a href="#research">Research</a> ·
   <a href="#contributing">Contributing</a>
 </p>
 
@@ -229,6 +230,16 @@ exists.
 at the measured cadence, only after seven days of history) · per-desk
 mailbox so a PM desk can hand a thread to a dev desk in another harness ·
 signed receipts at the `shipped` gate.
+
+## Research
+
+The field notes behind the design are published as
+[The Harness Layer](https://dev.to/azankhyder/series/42904) on dev.to.
+Each note's scripts, raw results and figures live under
+[`research/`](research/) in this repo, starting with
+[`research/009-stop-rule/`](research/009-stop-rule/) for
+[A stop rule that trusts one score is worse than a dumb budget](https://dev.to/azankhyder/a-stop-rule-that-trusts-one-score-is-worse-than-a-dumb-budget-428c).
+Author: [Azan Hyder](https://github.com/azank1) ([@azankhyder](https://x.com/azankhyder) on X and dev.to).
 
 ## Contributing
 
