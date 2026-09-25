@@ -1,4 +1,4 @@
-# 009 · A stop rule that trusts one score is worse than a dumb budget
+# 009 · Stop rule 
 
 Artifact for the Harness Layer field note of the same name. Everything here reproduces the
 tables and figures in the note. No network, no model calls; a few minutes on a laptop.
