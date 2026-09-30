@@ -27,6 +27,7 @@ testpaths = ["tests"]
 line-length = 120
 target-version = "py311"
 src = ["src", "tests"]
+extend-exclude = ["research"]  # standalone artifacts, each with its own README; not package code
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
