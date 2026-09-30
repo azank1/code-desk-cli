@@ -7,6 +7,23 @@ All notable changes to this project are recorded here. Format follows
 ## [Unreleased]
 
 ### Added
+- Desk-to-desk mail in `.office/mail/<desk>/`: `desk send`, `desk mail`,
+  `desk mail read`. Separate from the board on purpose: the board is
+  owner-to-engineer inside a thread, mail crosses desks and harnesses.
+- Turn-start delivery: `desk hook claude` (UserPromptSubmit,
+  `additionalContext`) and `desk hook cursor` (beforeSubmitPrompt,
+  `additional_context`), installed project-scoped by `desk hooks --install`
+  with a read-then-merge that keeps existing hooks. Codex is pushed to with
+  `codex queue --thread <desk>` when a session carries the desk's name.
+  Both pull hooks verified live with a nonce; `cursor-agent -p` does not run
+  project hooks, only its interactive TUI does.
+- `desk up` sets `DESK=<name>` and `DESK_OFFICE=<root>` on every desk's
+  process; role prompts ask for `desk mail read` at the start of each turn.
+- `desk hooks --check` runs each installed hook with a bare `PATH` and an
+  empty payload and shows its exit code and output.
+- `.office/.gitignore` (written by `desk init`, or by the first `desk send`
+  / `desk up`) keeps `mail/` and `launches.yaml` out of git: they are
+  per-machine, the board is the record.
 - `desk estimate`: per-desk pace from measured history (tokens / days),
   projected per sprint and per 30 days, compared with the sprint budget and
   with the `plans` tiers in `office.yaml`. Refuses any desk with under seven
@@ -18,6 +35,10 @@ All notable changes to this project are recorded here. Format follows
   by name, launch record or directory.
 
 ### Changed
+- Hooks are installed with the absolute path of the `desk` that installed
+  them; a bare `desk` entry from an earlier install still counts as ours.
+- The turn-start hook moves mail first and renders only what it moved, so
+  two sessions serving one desk each show a message exactly once.
 - The meter distinguishes counted turns from metered turns. A desk whose
   harness writes no token counts (Cursor) shows `n/a` instead of `0`, and a
   mixed desk marks its total with `+`.

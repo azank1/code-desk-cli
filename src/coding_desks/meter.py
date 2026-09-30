@@ -9,7 +9,7 @@ from pathlib import Path
 
 import yaml
 
-from .manifest import Office
+from .manifest import Office, ensure_state_ignore
 
 UNASSIGNED = "(unassigned)"
 LAUNCH_MATCH_WINDOW = dt.timedelta(minutes=10)
@@ -276,6 +276,7 @@ def read_launches(office: Office) -> list[Launch]:
 def record_launch(office: Office, launch: Launch) -> None:
     p = launches_path(office)
     p.parent.mkdir(parents=True, exist_ok=True)
+    ensure_state_ignore(office)
     data = yaml.safe_load(p.read_text()) if p.is_file() else []
     data = data or []
     data.append(
