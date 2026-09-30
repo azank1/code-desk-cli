@@ -16,6 +16,7 @@ class LaunchError(Exception):
 
 
 def desk_command(office: Office, desk: Desk) -> list[str]:
+    """The harness argv for one desk, without the DESK= environment (see `desk_env`)."""
     role = office.root / desk.role
     if desk.harness == "claude":
         return ["claude", "--name", desk.name, "--append-system-prompt-file", str(role)]
@@ -39,8 +40,19 @@ def codex_pointer(desk: Desk, role) -> str:
     return (
         f"You are the {desk.name} desk of this office. "
         f"Read {role} now and follow it for the rest of this session; "
-        "it is your role prompt. Then read office.yaml and .office/board.yaml."
+        "it is your role prompt. Then read office.yaml and .office/board.yaml. "
+        "At the start of every turn run `desk mail read` and act on what it prints."
     )
+
+
+def desk_env(office: Office, desk: Desk) -> list[str]:
+    """`env DESK=<name> DESK_OFFICE=<root>` prefix: which desk a process serves, and the one office it belongs to.
+
+    DESK_OFFICE keeps a desk that works in another directory (a worktree, a
+    sub-repo) on this office's board and mail instead of whatever office.yaml
+    it finds nearest.
+    """
+    return ["env", f"DESK={desk.name}", f"DESK_OFFICE={office.root}"]
 
 
 def tmux_plan(office: Office) -> list[list[str]]:
@@ -50,7 +62,7 @@ def tmux_plan(office: Office) -> list[list[str]]:
     first = True
     for d in office.desks.values():
         cwd = str((office.root / d.cwd).resolve())
-        cmd = shlex.join(desk_command(office, d))
+        cmd = shlex.join(desk_env(office, d) + desk_command(office, d))
         if first:
             plan.append(["tmux", "new-session", "-d", "-s", session, "-n", d.name, "-c", cwd, cmd])
             first = False

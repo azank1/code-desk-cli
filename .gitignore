@@ -5,3 +5,5 @@ dist/
 .pytest_cache/
 .ruff_cache/
 .office/board.yaml.bak
+.office/mail/
+.office/launches.yaml

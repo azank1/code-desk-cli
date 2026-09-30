@@ -12,6 +12,17 @@ HATS = ("owner", "engineer")
 HARNESSES = ("claude", "codex", "cursor", "custom")
 OFFICE_FILE = "office.yaml"
 STATE_DIR = ".office"
+STATE_IGNORE = "# written by desk: per-machine state. board.yaml is the record; commit it.\nmail/\nlaunches.yaml\n"
+
+
+def ensure_state_ignore(office: Office) -> None:
+    """`.office/.gitignore` for the per-machine files (mail, launches); written once, never rewritten."""
+    p = office.state_dir / ".gitignore"
+    if not p.exists():
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(STATE_IGNORE)
+
+
 BOARD_FILE = "board.yaml"
 
 
