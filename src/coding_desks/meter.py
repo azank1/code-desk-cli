@@ -414,3 +414,96 @@ def fmt_tokens(n: int) -> str:
     if n >= 1_000:
         return f"{n / 1_000:.0f}k"
     return str(n)
+
+
+# -- estimate ------------------------------------------------------------------
+
+MIN_HISTORY_DAYS = 7
+
+
+@dataclass
+class DeskEstimate:
+    desk: str
+    harness: str
+    history_days: float  # span from the desk's first attributed turn to now
+    active_days: int  # distinct calendar days with at least one turn
+    turns: int
+    total: int  # tokens over the history
+    unmetered: bool  # every turn came from a harness that writes no token counts
+    budget: int | None  # per sprint, from the manifest
+    sprint_days: int
+
+    @property
+    def per_day(self) -> float:
+        return self.total / max(self.history_days, 1.0)
+
+    @property
+    def per_sprint(self) -> int:
+        return int(self.per_day * self.sprint_days)
+
+    @property
+    def per_month(self) -> int:
+        return int(self.per_day * 30)
+
+    @property
+    def budget_ratio(self) -> float | None:
+        return None if not self.budget else self.per_sprint / self.budget
+
+    def plan(self, tiers: list) -> tuple[str | None, bool]:
+        """(smallest tier whose monthly tokens cover the projection, or the largest), (covered?)."""
+        if not tiers or self.unmetered:
+            return None, False
+        for t in tiers:
+            if t.tokens_per_month >= self.per_month:
+                return t.name, True
+        return tiers[-1].name, False
+
+
+def estimate(
+    office: Office,
+    sessions: list[Session],
+    launches: list[Launch],
+    now: dt.datetime | None = None,
+    min_days: int = MIN_HISTORY_DAYS,
+) -> tuple[list[DeskEstimate], list[str]]:
+    """Per-desk projection from measured history, or the reasons it is refused.
+
+    A desk gets a number only when its first attributed turn is at least
+    `min_days` before now; the projection is total / days, nothing cleverer.
+    Desks with no attributed turns are skipped, not refused.
+    """
+    now = now or dt.datetime.now(dt.UTC)
+    who = attribute(office, sessions, launches)
+    by_desk: dict[str, list[tuple[Session, Turn]]] = {}
+    for s in sessions:
+        d = who.get(s.id)
+        if d is None or d == UNASSIGNED:
+            continue
+        for t in s.turns:
+            if t.ts <= now:
+                by_desk.setdefault(d, []).append((s, t))
+    out: list[DeskEstimate] = []
+    refused: list[str] = []
+    for d in office.desks.values():
+        rows = by_desk.get(d.name)
+        if not rows:
+            continue
+        first = min(t.ts for _, t in rows)
+        days = (now - first).total_seconds() / 86400.0
+        if days < min_days:
+            refused.append(f"{d.name}: {days:.1f} days of history, need {min_days}")
+            continue
+        out.append(
+            DeskEstimate(
+                desk=d.name,
+                harness=d.harness,
+                history_days=days,
+                active_days=len({t.ts.astimezone().date() for _, t in rows}),
+                turns=len(rows),
+                total=sum(t.total for _, t in rows),
+                unmetered=all(not s.metered for s, _ in rows),
+                budget=d.budget,
+                sprint_days=office.cadence.sprint_days,
+            )
+        )
+    return out, refused

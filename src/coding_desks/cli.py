@@ -280,6 +280,67 @@ def cmd_meter(a) -> None:
     print(meter_table(office, days=a.days))
 
 
+def estimate_table(office: Office, min_days: int = meter.MIN_HISTORY_DAYS) -> str:
+    sessions = meter.read_all()
+    rows, refused = meter.estimate(office, sessions, meter.read_launches(office), min_days=min_days)
+    out: list[str] = []
+    if rows:
+        body = []
+        for e in rows:
+            if e.unmetered:
+                pace, sprint, month, budget, plan = dim("n/a"), dim("n/a"), dim("n/a"), dim("no data"), dim("n/a")
+            else:
+                pace = f"{meter.fmt_tokens(int(e.per_day))}/day"
+                sprint = meter.fmt_tokens(e.per_sprint)
+                month = meter.fmt_tokens(e.per_month)
+                r = e.budget_ratio
+                budget = (
+                    ""
+                    if r is None
+                    else (bad if r > 1 else ok)(f"{100 * r:.0f}%") + dim(f" of {meter.fmt_tokens(e.budget)}")
+                )
+                name, covered = e.plan(office.plans.get(e.harness, []))
+                if name is None:
+                    plan = dim("no plans listed")
+                else:
+                    plan = ok(name) if covered else bad(f"{name} (largest listed, not enough)")
+            body.append(
+                [
+                    e.desk,
+                    e.harness,
+                    f"{e.history_days:.0f}d/{e.active_days}",
+                    str(e.turns),
+                    pace,
+                    sprint,
+                    month,
+                    budget,
+                    plan,
+                ]
+            )
+        out.append(
+            table(
+                ["DESK", "HARNESS", "HIST/ACTIVE", "TURNS", "PACE", "PER SPRINT", "PER 30D", "BUDGET", "PLAN"],
+                body,
+            )
+        )
+        out.append(
+            dim(
+                f"pace = tokens (cache reads included) over the whole history / days, per {office.cadence.sprint_days}-day sprint; "
+            )
+            + dim("plans come from office.yaml, the tool ships no vendor limits")
+        )
+    for r in refused:
+        out.append(bad("refused ") + r + dim("; no number until then"))
+    if not rows and not refused:
+        out.append(dim("no harness usage attributed to this office yet; run desk up, work, come back in a week"))
+    return "\n".join(out)
+
+
+def cmd_estimate(a) -> None:
+    office = _office()
+    print(estimate_table(office, min_days=a.min_days))
+
+
 def cmd_up(a) -> None:
     office = _office()
     try:
@@ -331,6 +392,12 @@ def main(argv: list[str] | None = None) -> None:
     s = sp.add_parser("meter", help="harness usage per desk from the transcript logs")
     s.add_argument("--days", type=int, help="ignore the sprint window and use the last N days")
     s.set_defaults(fn=cmd_meter)
+
+    s = sp.add_parser("estimate", help="what each desk needs per sprint and per month, from measured history")
+    s.add_argument(
+        "--min-days", type=int, default=meter.MIN_HISTORY_DAYS, help="history a desk needs before it gets a number"
+    )
+    s.set_defaults(fn=cmd_estimate)
 
     s = sp.add_parser("up", help="open the office: one tmux window per desk")
     s.add_argument("--dry-run", action="store_true", help="print the tmux commands only")

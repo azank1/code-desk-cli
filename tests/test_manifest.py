@@ -55,3 +55,26 @@ def test_warnings_role_missing(office):
     (office.root / ".office" / "roles" / "pm.md").unlink()
     ws = warnings(office)
     assert any("pm" in w and "role file missing" in w for w in ws)
+
+
+def test_plans_parse_sorted_and_validated(tmp_path):
+    import pytest
+
+    from coding_desks.manifest import ManifestError, parse
+    from tests.conftest import MANIFEST
+
+    data = dict(
+        MANIFEST,
+        plans={
+            "claude": [
+                {"name": "max", "tokens_per_month": "200_000_000"},
+                {"name": "pro", "tokens_per_month": 40_000_000},
+            ]
+        },
+    )
+    office = parse(data, tmp_path)
+    assert [(p.name, p.tokens_per_month) for p in office.plans["claude"]] == [("pro", 40_000_000), ("max", 200_000_000)]
+    with pytest.raises(ManifestError, match="plans.gemini"):
+        parse(dict(MANIFEST, plans={"gemini": []}), tmp_path)
+    with pytest.raises(ManifestError, match="tokens_per_month"):
+        parse(dict(MANIFEST, plans={"codex": [{"name": "plus"}]}), tmp_path)
