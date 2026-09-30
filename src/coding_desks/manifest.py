@@ -64,6 +64,18 @@ class Cadence:
 
 
 @dataclass
+class Plan:
+    """One subscription tier the owner is willing to buy, in tokens per 30 days.
+
+    The tool ships no vendor numbers: limits are not published in tokens and
+    change without notice. Put in what you have observed or negotiated.
+    """
+
+    name: str
+    tokens_per_month: int
+
+
+@dataclass
 class Office:
     name: str
     root: Path
@@ -73,6 +85,7 @@ class Office:
     desks: dict[str, Desk] = field(default_factory=dict)
     milestones: dict[str, Milestone] = field(default_factory=dict)
     threads: dict[str, Thread] = field(default_factory=dict)
+    plans: dict[str, list[Plan]] = field(default_factory=dict)  # harness -> tiers, ascending
 
     @property
     def gate_order(self) -> list[str]:
@@ -233,6 +246,22 @@ def parse(data: dict, root: Path) -> Office:
             if unknown:
                 raise ManifestError(f"threads.{tname}.gates: unknown gates {unknown}")
         office.threads[tname] = Thread(tname, desk, ms, tg)
+
+    plans = data.get("plans") or {}
+    if not isinstance(plans, dict):
+        raise ManifestError("plans: must be a mapping of harness -> list of tiers")
+    for harness, tiers in plans.items():
+        if harness not in HARNESSES:
+            raise ManifestError(f"plans.{harness}: unknown harness (one of {list(HARNESSES)})")
+        out: list[Plan] = []
+        for i, t in enumerate(tiers or []):
+            if not isinstance(t, dict) or not t.get("name"):
+                raise ManifestError(f"plans.{harness}[{i}]: each tier needs a name")
+            n = _int(t.get("tokens_per_month"), f"plans.{harness}.{t['name']}.tokens_per_month")
+            if not n or n <= 0:
+                raise ManifestError(f"plans.{harness}.{t['name']}.tokens_per_month: required, > 0")
+            out.append(Plan(str(t["name"]), n))
+        office.plans[harness] = sorted(out, key=lambda x: x.tokens_per_month)
 
     return office
 
